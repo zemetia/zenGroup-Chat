@@ -31,6 +31,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const { toast } = useToast();
   const lastProcessedId = useRef<string | null>(null);
 
+  // Use a ref to get the latest participants without adding it to useEffect deps
+  const participantsRef = useRef(participants);
+  participantsRef.current = participants;
+
   useEffect(() => {
     try {
       const storedData = localStorage.getItem(CHAT_STORAGE_KEY);
@@ -68,7 +72,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     lastProcessedId.current = lastMessage.id;
 
-    const aiParticipants = participants.filter(p => p.isAI) as AIAssistant[];
+    // Use the ref to get current participants
+    const aiParticipants = participantsRef.current.filter(p => p.isAI) as AIAssistant[];
     if (aiParticipants.length === 0) {
       return;
     }
@@ -82,6 +87,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     const chatHistory = messages.slice(-10).map(m => ({ id: m.id, name: m.author.name, text: m.text }));
     
+    // Use the ref here too
     const potentialResponders = aiParticipants.filter(ai => ai.id !== lastMessage.author.id);
 
     const getAIResponse = async () => {
@@ -107,15 +113,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                       const delay = baseDelay + typingDuration;
 
                       setTimeout(() => {
-                          const aiMessage: Message = {
-                              id: `msg-${Date.now()}-${respondingAI.id}`,
-                              author: respondingAI,
-                              text: response.reply,
-                              timestamp: Date.now(),
-                              replyToId: response.replyToId,
-                          };
-                          setMessages(prev => [...prev, aiMessage]);
-                          setParticipantTyping(respondingAI.id, false);
+                          // Find the author again from the latest participants ref to avoid stale data
+                          const aiMessageAuthor = participantsRef.current.find(p => p.id === respondingAI.id);
+                          
+                          if (aiMessageAuthor) {
+                              const aiMessage: Message = {
+                                  id: `msg-${Date.now()}-${respondingAI.id}`,
+                                  author: aiMessageAuthor,
+                                  text: response.reply,
+                                  timestamp: Date.now(),
+                                  replyToId: response.replyToId,
+                              };
+                              setMessages(prev => [...prev, aiMessage]);
+                              setParticipantTyping(respondingAI.id, false);
+                          }
                       }, delay);
 
                       baseDelay += 2000 + Math.random() * 1500;
@@ -128,7 +139,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
 
     getAIResponse();
-}, [messages, participants]);
+}, [messages]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
