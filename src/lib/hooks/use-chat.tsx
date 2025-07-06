@@ -42,7 +42,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const { toast } = useToast();
-  const lastProcessedId = useRef<string | null>(null);
+
+  const lastProcessedMemoryId = useRef<string | null>(null);
+  const lastProcessedBotResponseId = useRef<string | null>(null);
+
   const nextApiKeyIndexRef = useRef(0);
 
   const participantsRef = useRef(participants);
@@ -142,20 +145,41 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Main AI processing logic
+  // Main AI processing logic - runs when messages or API keys change.
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return;
 
-    if (!lastMessage || lastMessage.id === lastProcessedId.current) {
-      return;
-    }
-    lastProcessedId.current = lastMessage.id;
-    
     const aiParticipants = participantsRef.current.filter(p => p.isAI) as AIAssistant[];
 
-    const processTurn = async () => {
-        if (lastMessage.type === 'user') {
-            if (aiParticipants.length === 0) return;
+    // Task 1: Summarize conversation for AI memory after an AI speaks.
+    if (lastMessage.type === 'ai' && lastMessage.id !== lastProcessedMemoryId.current) {
+        lastProcessedMemoryId.current = lastMessage.id;
+        
+        const aiAuthor = lastMessage.author as AIAssistant;
+        const conversationSlice = messages.slice(-5);
+        const conversationHistory = conversationSlice
+            .filter(m => m.type !== 'system')
+            .map(m => `${m.author.name}: ${m.text}`).join('\n');
+        
+        summarizeAndStore({
+            conversationHistory,
+            botPersona: `Tone: ${aiAuthor.persona.tone}, Expertise: ${aiAuthor.persona.expertise}. ${aiAuthor.persona.additionalInstructions || ''}`,
+        }).then(({ newMemory }) => {
+            if (newMemory) {
+                updateMemoryAndPrune(aiAuthor.id, newMemory);
+            }
+        }).catch(e => {
+            console.error("Failed to summarize and store memory", e);
+        });
+    }
+
+    // Task 2: Get AI responses after a user speaks.
+    if (lastMessage.type === 'user' && lastMessage.id !== lastProcessedBotResponseId.current) {
+        // This is the critical check: only proceed if API keys are loaded.
+        // If they aren't, this effect will re-run when they are, and this block will execute then.
+        if (apiKeys.length > 0 && aiParticipants.length > 0) {
+            lastProcessedBotResponseId.current = lastMessage.id;
 
             const chatHistoryText = messages
                 .slice(-5, -1) // Get 4 messages before the last one
@@ -163,7 +187,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 .map(m => `${m.author.name}: ${m.text}`).join('\n');
 
             for (const ai of aiParticipants) {
-                // Each AI "thinks" for a random amount of time before deciding to respond
                 const thinkingDelay = 1000 + Math.random() * 2500;
                 
                 setTimeout(() => {
@@ -202,30 +225,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                     })();
                 }, thinkingDelay);
             }
-        } else if (lastMessage.type === 'ai') {
-            const aiAuthor = lastMessage.author as AIAssistant;
-            const conversationSlice = messages.slice(-5);
-            const conversationHistory = conversationSlice
-                .filter(m => m.type !== 'system')
-                .map(m => `${m.author.name}: ${m.text}`).join('\n');
-            
-            try {
-                const { newMemory } = await summarizeAndStore({
-                    conversationHistory,
-                    botPersona: `Tone: ${aiAuthor.persona.tone}, Expertise: ${aiAuthor.persona.expertise}. ${aiAuthor.persona.additionalInstructions || ''}`,
-                });
-
-                if (newMemory) {
-                    await updateMemoryAndPrune(aiAuthor.id, newMemory);
-                }
-            } catch (e) {
-                console.error("Failed to summarize and store memory", e);
-            }
         }
-    };
-    
-    processTurn();
-  }, [messages, updateMemoryAndPrune, apiKeys]);
+    }
+  }, [messages, apiKeys, updateMemoryAndPrune]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
@@ -428,7 +430,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     setParticipants(prev => {
         return [HUMAN_USER, ...prev.filter(p => p.isAI).map(ai => ({...ai, memoryBank: []}))];
     });
-    lastProcessedId.current = null;
+    lastProcessedMemoryId.current = null;
+    lastProcessedBotResponseId.current = null;
     const dataToStore = JSON.stringify({ messages: [], participants: participantsRef.current.map(p => p.isAI ? {...p, memoryBank: []} : p) });
     localStorage.setItem(CHAT_STORAGE_KEY, dataToStore);
     
