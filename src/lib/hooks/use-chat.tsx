@@ -3,18 +3,21 @@
 import { controlAi } from '@/ai/flows/ai-flow-controller';
 import { configureAIPersona } from '@/ai/flows/ai-persona-configurator';
 import { useToast } from '@/hooks/use-toast';
-import { AI_LIMIT, HUMAN_USER } from '@/lib/constants';
+import { AI_LIMIT, CUSTOM_AI_STORAGE_KEY, HUMAN_USER } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona } from '@/lib/types';
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
 
 interface ChatContextType {
   messages: Message[];
   participants: Participant[];
+  customAIs: AIAssistant[];
   addAIAssistant: (assistant: AIAssistant) => void;
   removeAIParticipant: (assistantId: string) => void;
   sendMessage: (text: string) => Promise<void>;
-  updateAIPersona: (assistantId: string, persona: Persona) => Promise<void>;
+  updateAIPersona: (assistantId: string, persona: Persona, name?: string) => Promise<void>;
   clearChat: () => void;
+  addCustomAIAssistant: (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description'> & {description?: string}) => void;
+  removeCustomAIAssistant: (assistantId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -24,6 +27,7 @@ const CHAT_STORAGE_KEY = 'zen-group-chat';
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([HUMAN_USER]);
+  const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -34,8 +38,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setMessages(storedMessages || []);
         setParticipants(storedParticipants || [HUMAN_USER]);
       }
+      const storedCustomAIs = localStorage.getItem(CUSTOM_AI_STORAGE_KEY);
+      if(storedCustomAIs) {
+        setCustomAIs(JSON.parse(storedCustomAIs));
+      }
     } catch (error) {
-      console.error("Failed to load chat from local storage", error);
+      console.error("Failed to load data from local storage", error);
     }
   }, []);
 
@@ -43,10 +51,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     try {
       const dataToStore = JSON.stringify({ messages, participants });
       localStorage.setItem(CHAT_STORAGE_KEY, dataToStore);
-    } catch (error) {
+      const customAIsToStore = JSON.stringify(customAIs);
+      localStorage.setItem(CUSTOM_AI_STORAGE_KEY, customAIsToStore);
+    } catch (error)
+ {
       console.error("Failed to save chat to local storage", error);
     }
-  }, [messages, participants]);
+  }, [messages, participants, customAIs]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
@@ -73,20 +84,53 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return [...prev, assistant];
     });
   }, [toast]);
+  
+  const addCustomAIAssistant = useCallback((data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description'> & {description?: string}) => {
+    const newAssistant: AIAssistant = {
+        ...data,
+        id: `custom-ai-${Date.now()}`,
+        avatar: 'https://placehold.co/40x40.png',
+        isAI: true,
+        isCustom: true,
+        description: data.description || `Custom AI with expertise in ${data.persona.expertise}.`
+    };
+    setCustomAIs(prev => [...prev, newAssistant]);
+    toast({
+        title: "Custom AI Created!",
+        description: `${data.name} is now available to add to the chat.`,
+    });
+  }, [toast]);
 
   const removeAIParticipant = useCallback((assistantId: string) => {
     setParticipants(prev => prev.filter(p => p.id !== assistantId));
   }, []);
 
-  const updateAIPersona = useCallback(async (assistantId: string, persona: Persona) => {
+  const removeCustomAIAssistant = useCallback((assistantId: string) => {
+    setParticipants(prev => prev.filter(p => p.id !== assistantId));
+    setCustomAIs(prev => prev.filter(ai => ai.id !== assistantId));
+    toast({
+        title: "Custom AI Deleted",
+        description: "The custom AI has been permanently deleted.",
+    });
+  }, [toast]);
+
+  const updateAIPersona = useCallback(async (assistantId: string, persona: Persona, name?: string) => {
     try {
         await configureAIPersona(persona);
-        setParticipants(prev =>
-            prev.map(p => (p.id === assistantId ? { ...p, persona } : p))
-        );
+        
+        const updateLogic = (p: Participant) => {
+          if (p.id === assistantId) {
+            return { ...p, persona, name: name || p.name };
+          }
+          return p;
+        }
+
+        setParticipants(prev => prev.map(updateLogic));
+        setCustomAIs(prev => prev.map(p => updateLogic(p) as AIAssistant));
+        
         toast({
             title: "AI Persona Updated",
-            description: `The persona for the AI assistant has been successfully updated.`,
+            description: `The AI assistant has been successfully updated.`,
         });
     } catch (error) {
         console.error("Failed to update AI persona:", error);
@@ -144,7 +188,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setMessages(prev => [...prev, ...newAIMessages]);
     }
 
-  }, [messages, participants, toast]);
+  }, [messages, participants]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
@@ -159,11 +203,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const value = {
     messages,
     participants,
+    customAIs,
     addAIAssistant,
     removeAIParticipant,
     sendMessage,
     updateAIPersona,
     clearChat,
+    addCustomAIAssistant,
+    removeCustomAIAssistant,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;

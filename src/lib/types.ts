@@ -12,15 +12,17 @@ export type Participant = {
   persona?: Persona;
   description?: string;
   isTyping?: boolean;
+  isCustom?: boolean;
 };
 
 export type AIAssistant = Omit<Participant, 'isAI'> & {
   isAI: true;
   description: string;
   persona: Persona;
+  isCustom?: boolean;
 };
 
-export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping'> & {
+export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping' | 'isCustom'> & {
   isAI: false;
 };
 

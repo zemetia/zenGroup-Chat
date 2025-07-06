@@ -59,3 +59,5 @@ export const AVAILABLE_AI_ASSISTANTS: AIAssistant[] = [
 ];
 
 export const AI_LIMIT = 3;
+
+export const CUSTOM_AI_STORAGE_KEY = 'zen-group-chat-custom-ai';

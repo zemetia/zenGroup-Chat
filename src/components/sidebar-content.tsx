@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Bot, PlusCircle, User, Cog, Trash2, Users, BrainCircuit, Eraser } from 'lucide-react';
+import { Bot, PlusCircle, User, Cog, Trash2, Users, BrainCircuit, Eraser, Pencil } from 'lucide-react';
 import {
   SidebarHeader,
   SidebarContent as UiSidebarContent,
@@ -30,14 +30,27 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/alert-dialog";
+import { CreateAIModal } from './create-ai-modal';
 
 export function SidebarContent() {
-  const { participants, addAIAssistant, removeAIParticipant, clearChat } = useChat();
-  const [selectedAI, setSelectedAI] = useState<AIAssistant | null>(null);
+  const { participants, addAIAssistant, removeAIParticipant, clearChat, customAIs, removeCustomAIAssistant } = useChat();
+  
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [selectedAIForPersona, setSelectedAIForPersona] = useState<AIAssistant | null>(null);
+  const [selectedAIForEdit, setSelectedAIForEdit] = useState<AIAssistant | null>(null);
 
   const humanUser = participants.find(p => !p.isAI);
   const aiParticipants = participants.filter(p => p.isAI) as AIAssistant[];
+  const allAvailableAIs = [...AVAILABLE_AI_ASSISTANTS, ...customAIs];
+
+  const handleConfigureClick = (ai: AIAssistant) => {
+    if (ai.isCustom) {
+      setSelectedAIForEdit(ai);
+    } else {
+      setSelectedAIForPersona(ai);
+    }
+  }
 
   return (
     <>
@@ -50,9 +63,14 @@ export function SidebarContent() {
       <UiSidebarContent className="p-0">
         <ScrollArea className="h-full">
             <SidebarGroup className="p-4">
-                <SidebarGroupLabel className="flex items-center gap-2"><BrainCircuit />Available AIs</SidebarGroupLabel>
+                <SidebarGroupLabel className="flex items-center justify-between w-full">
+                    <span className="flex items-center gap-2"><BrainCircuit />Available AIs</span>
+                    <Button variant="ghost" size="icon" className="w-7 h-7" onClick={() => setIsCreateModalOpen(true)}>
+                        <PlusCircle className="w-5 h-5" />
+                    </Button>
+                </SidebarGroupLabel>
                 <SidebarMenu>
-                    {AVAILABLE_AI_ASSISTANTS.map((ai) => (
+                    {allAvailableAIs.map((ai) => (
                         <SidebarMenuItem key={ai.id} className="group/item">
                              <div className="flex items-center w-full">
                                 <Image
@@ -61,20 +79,28 @@ export function SidebarContent() {
                                     width={32}
                                     height={32}
                                     className="rounded-full mr-3"
-                                    data-ai-hint="robot face"
+                                    data-ai-hint={ai.isCustom ? "custom robot" : "robot face"}
                                 />
                                 <div className="flex-1">
                                     <p className="font-semibold text-sm">{ai.name}</p>
                                     <p className="text-xs text-muted-foreground">{ai.description}</p>
                                 </div>
-                                <Button
-                                    size="icon"
-                                    variant="ghost"
-                                    className="w-8 h-8 ml-2 opacity-0 group-hover/item:opacity-100 transition-opacity"
-                                    onClick={() => addAIAssistant(ai)}
-                                >
-                                    <PlusCircle className="w-5 h-5" />
-                                </Button>
+                                <div className="flex opacity-0 group-hover/item:opacity-100 transition-opacity">
+                                    {ai.isCustom && (
+                                        <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
+                                            <Pencil className="w-4 h-4" />
+                                        </Button>
+                                    )}
+                                    <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="w-8 h-8"
+                                        onClick={() => addAIAssistant(ai)}
+                                        disabled={participants.some(p => p.id === ai.id)}
+                                    >
+                                        <PlusCircle className="w-5 h-5" />
+                                    </Button>
+                                </div>
                              </div>
                         </SidebarMenuItem>
                     ))}
@@ -98,7 +124,7 @@ export function SidebarContent() {
                                 <Image src={ai.avatar} alt={ai.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="robot face" />
                                 <span className="font-semibold text-sm flex-1 flex items-center gap-2">{ai.name} <Bot className="w-4 h-4 text-muted-foreground" /></span>
                                 <div className="flex opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                    <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => setSelectedAI(ai)}>
+                                    <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
                                         <Cog className="w-4 h-4" />
                                     </Button>
                                     <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => removeAIParticipant(ai.id)}>
@@ -135,7 +161,9 @@ export function SidebarContent() {
           </AlertDialogContent>
         </AlertDialog>
       </SidebarFooter>
-      {selectedAI && <AIPersonaModal ai={selectedAI} isOpen={!!selectedAI} onOpenChange={() => setSelectedAI(null)} />}
+      {selectedAIForPersona && <AIPersonaModal ai={selectedAIForPersona} isOpen={!!selectedAIForPersona} onOpenChange={() => setSelectedAIForPersona(null)} />}
+      <CreateAIModal isOpen={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
+      {selectedAIForEdit && <CreateAIModal ai={selectedAIForEdit} isOpen={!!selectedAIForEdit} onOpenChange={() => setSelectedAIForEdit(null)} />}
     </>
   );
 }
