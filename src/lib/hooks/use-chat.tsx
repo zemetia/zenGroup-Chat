@@ -243,6 +243,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         text: reply.reply!,
         timestamp: Date.now(),
         type: 'ai',
+        replyToId: triggeringMessage.id,
       };
       
       setParticipants(prev => prev.map(p => p.id === respondingAI.id ? { ...p, isTyping: false } : p));

@@ -6,6 +6,14 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Bot, User, ArrowDown, CornerUpLeft, Info } from "lucide-react";
 import { Button } from "./ui/button";
+import { Participant, Message } from "@/lib/types";
+import { HUMAN_USER } from "@/lib/constants";
+
+const UNKNOWN_USER: Participant = {
+    ...HUMAN_USER,
+    id: 'unknown-user',
+    name: 'Unknown User'
+};
 
 export function ChatMessages() {
   const { messages, participants } = useChat();
@@ -81,7 +89,9 @@ export function ChatMessages() {
                 );
             }
 
-            const isUser = !message.author.isAI;
+            const author = message.author || UNKNOWN_USER;
+            const isUser = !author.isAI;
+            
             const repliedToMessage = message.replyToId
               ? messages.find((m) => m.id === message.replyToId)
               : null;
@@ -97,12 +107,12 @@ export function ChatMessages() {
               >
                 {!isUser && (
                   <Avatar className="w-9 h-9 border shrink-0">
-                    <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="robot face" />
+                    <AvatarImage src={author.avatar} alt={author.name} data-ai-hint="robot face" />
                     <AvatarFallback><Bot /></AvatarFallback>
                   </Avatar>
                 )}
                 <div className={cn("flex flex-col gap-1.5 max-w-xl", isUser && "items-end")}>
-                  <p className={cn("text-xs text-muted-foreground", isUser ? "text-right" : "text-left")}>{isUser ? 'You' : message.author.name}</p>
+                  <p className={cn("text-xs text-muted-foreground", isUser ? "text-right" : "text-left")}>{isUser ? 'You' : author.name}</p>
                   <div
                     className={cn(
                       "p-3 rounded-lg",
@@ -112,7 +122,7 @@ export function ChatMessages() {
                     )}
                   >
                     
-                    {repliedToMessage && repliedToMessage.type !== 'system' && (
+                    {repliedToMessage && repliedToMessage.type !== 'system' && repliedToMessage.author && (
                       <button
                         onClick={() => handleReplyClick(repliedToMessage.id)}
                         className={cn(
@@ -140,7 +150,7 @@ export function ChatMessages() {
 
                 {isUser && (
                   <Avatar className="w-9 h-9 shrink-0">
-                    <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="person avatar" />
+                    <AvatarImage src={author.avatar} alt={author.name} data-ai-hint="person avatar" />
                     <AvatarFallback><User /></AvatarFallback>
                   </Avatar>
                 )}
