@@ -39,9 +39,9 @@ export function ChatInput() {
   };
 
   return (
-    <div className="p-4 border-t bg-background">
+    <div className="p-4 border-t bg-background shrink-0">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-4">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-4 max-w-4xl mx-auto">
           <FormField
             control={form.control}
             name="message"

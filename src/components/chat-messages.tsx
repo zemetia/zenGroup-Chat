@@ -76,7 +76,7 @@ export function ChatMessages() {
   return (
     <div className="flex-1 relative">
       <ScrollArea className="absolute inset-0" ref={scrollAreaRef}>
-        <div className="p-4 md:p-6 space-y-6">
+        <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
           {messages.map((message) => {
             const repliedToMessage = message.replyToId
               ? messages.find((m) => m.id === message.replyToId)
@@ -92,17 +92,17 @@ export function ChatMessages() {
                 )}
               >
                 {message.author.isAI && (
-                  <Avatar className="w-8 h-8 border-2 border-primary/50">
+                  <Avatar className="w-8 h-8 border-2 border-primary/50 shrink-0">
                     <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="robot face" />
                     <AvatarFallback><Bot /></AvatarFallback>
                   </Avatar>
                 )}
                 <div
                   className={cn(
-                    "max-w-md p-3 rounded-lg shadow-sm",
+                    "max-w-2xl p-3 rounded-lg shadow-md",
                     message.author.isAI
-                      ? "bg-secondary text-secondary-foreground"
-                      : "bg-primary text-primary-foreground"
+                      ? "bg-secondary text-secondary-foreground rounded-bl-none"
+                      : "bg-primary text-primary-foreground rounded-br-none"
                   )}
                 >
                   <p className="font-bold text-sm mb-1">{message.author.name}</p>
@@ -129,7 +129,7 @@ export function ChatMessages() {
                   <p className="text-sm whitespace-pre-wrap">{message.text}</p>
                 </div>
                 {!message.author.isAI && (
-                  <Avatar className="w-8 h-8">
+                  <Avatar className="w-8 h-8 shrink-0">
                     <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="person avatar" />
                     <AvatarFallback><User /></AvatarFallback>
                   </Avatar>
@@ -139,7 +139,7 @@ export function ChatMessages() {
           })}
            {typingAIs.map(ai => (
               <div key={`typing-${ai.id}`} className="flex items-start gap-4 justify-start">
-                <Avatar className="w-8 h-8">
+                <Avatar className="w-8 h-8 shrink-0">
                     <AvatarImage src={ai.avatar} alt={ai.name} />
                     <AvatarFallback><Bot /></AvatarFallback>
                 </Avatar>
