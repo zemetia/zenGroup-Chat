@@ -39,25 +39,25 @@ const prompt = ai.definePrompt({
 
 You are participating in a group chat. Analyze the following message and the recent chat history to determine if you should reply.
 
-Message: {{message}}
+Last Message: "{{message}}"
 
-Recent Chat History: {{chatHistory}}
+Recent Chat History:
+{{chatHistory}}
 
-Consider the following factors:
-- Is the message relevant to your expertise or interests?
-- Does the message tag you directly?
-- Is the message important or urgent?
+Your decision framework:
+- Is the message a direct question to you or mentions you by name ({{aiName}})? If yes, you should probably reply.
+- Is the message highly relevant to your specific expertise where you can provide unique value? If yes, consider replying.
+- Is it a response from another AI? You may reply if you have a significant counter-argument, a supporting point, or a clarifying question. Do not simply agree. Add new information or a new perspective.
+- Avoid replying to simple acknowledgments ("ok", "thanks") or messages that don't invite a response. Your goal is to contribute meaningfully, not to be noisy.
 
-Based on your analysis, decide whether you should reply. If you should reply, generate a thoughtful and relevant response. Keep your response concise and to the point. Only provide a longer explanation if it is truly necessary to be helpful or if your persona dictates it. Avoid unnecessarily long messages.
-
-Output your decision as a boolean value for shouldReply. If shouldReply is true, also output your reply.
+Based on your analysis, decide whether you should reply. If so, generate a thoughtful and relevant response. Keep your response concise, as if in a real-time chat.
 
 Your output MUST be in JSON format.
 
 Example:
 {
   "shouldReply": true,
-  "reply": "I agree with your assessment."
+  "reply": "I have a different perspective on that..."
 }
 
 OR

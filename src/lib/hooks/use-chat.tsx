@@ -5,7 +5,7 @@ import { configureAIPersona } from '@/ai/flows/ai-persona-configurator';
 import { useToast } from '@/hooks/use-toast';
 import { AI_LIMIT, CUSTOM_AI_STORAGE_KEY, HUMAN_USER } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona } from '@/lib/types';
-import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode, useRef } from 'react';
 
 interface ChatContextType {
   messages: Message[];
@@ -29,6 +29,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [participants, setParticipants] = useState<Participant[]>([HUMAN_USER]);
   const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
   const { toast } = useToast();
+  const lastProcessedId = useRef<string | null>(null);
 
   useEffect(() => {
     try {
@@ -58,6 +59,60 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.error("Failed to save chat to local storage", error);
     }
   }, [messages, participants, customAIs]);
+
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1];
+
+    if (!lastMessage || lastMessage.id === lastProcessedId.current) {
+      return;
+    }
+    lastProcessedId.current = lastMessage.id;
+
+    const potentialResponders = participants.filter(p => p.isAI && p.id !== lastMessage.author.id) as AIAssistant[];
+    if (potentialResponders.length === 0) {
+      return;
+    }
+
+    const lastTwoMessages = messages.slice(-2);
+    if (lastTwoMessages.length === 2 && lastTwoMessages.every(m => m.author.isAI)) {
+      if (Math.random() < 0.6) {
+        return;
+      }
+    }
+
+    const chatHistory = messages.slice(-10).map(m => `${m.author.name}: ${m.text}`).join('\n');
+
+    potentialResponders.forEach(ai => {
+      const delay = 1500 + Math.random() * 3500;
+
+      setTimeout(async () => {
+        setParticipantTyping(ai.id, true);
+        
+        try {
+          const result = await controlAi({
+            message: lastMessage.text,
+            chatHistory: chatHistory,
+            aiName: ai.name,
+            aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
+          });
+
+          if (result.shouldReply && result.reply) {
+            const aiMessage: Message = {
+              id: `msg-${Date.now()}-${ai.id}`,
+              author: ai,
+              text: result.reply,
+              timestamp: Date.now(),
+            };
+            setMessages(prev => [...prev, aiMessage]);
+          }
+        } catch (error) {
+          console.error(`Error processing AI response for ${ai.name}:`, error);
+        } finally {
+          setParticipantTyping(ai.id, false);
+        }
+      }, delay);
+    });
+  }, [messages, participants]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
@@ -149,50 +204,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       text,
       timestamp: Date.now(),
     };
-    
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-
-    const activeAIs = participants.filter(p => p.isAI) as AIAssistant[];
-    const chatHistory = updatedMessages.slice(-10).map(m => `${m.author.name}: ${m.text}`).join('\n');
-
-    activeAIs.forEach(ai => setParticipantTyping(ai.id, true));
-
-    const aiResponses = await Promise.allSettled(
-      activeAIs.map(ai => 
-        controlAi({
-          message: text,
-          chatHistory,
-          aiName: ai.name,
-          aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
-        }).finally(() => {
-          setParticipantTyping(ai.id, false);
-        })
-      )
-    );
-
-    const newAIMessages = aiResponses.reduce<Message[]>((acc, result, index) => {
-      if (result.status === 'fulfilled' && result.value.shouldReply && result.value.reply) {
-        const aiAuthor = activeAIs[index];
-        acc.push({
-          id: `msg-${Date.now()}-${aiAuthor.id}`,
-          author: aiAuthor,
-          text: result.value.reply,
-          timestamp: Date.now(),
-        });
-      }
-      return acc;
-    }, []);
-
-    if (newAIMessages.length > 0) {
-      setMessages(prev => [...prev, ...newAIMessages]);
-    }
-
-  }, [messages, participants]);
+    setMessages(prev => [...prev, newMessage]);
+  }, []);
 
   const clearChat = useCallback(() => {
     setMessages([]);
     setParticipants([HUMAN_USER]);
+    lastProcessedId.current = null;
     localStorage.removeItem(CHAT_STORAGE_KEY);
     toast({
         title: "Chat Cleared",
