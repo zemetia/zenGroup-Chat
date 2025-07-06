@@ -223,32 +223,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   };
 
   const addAIAssistant = useCallback((assistant: AIAssistant) => {
-    setParticipants(prev => {
-      const aiCount = prev.filter(p => p.isAI).length;
-      if (aiCount >= AI_LIMIT) {
-        toast({
-          title: "AI Limit Reached",
-          description: `You can only add up to ${AI_LIMIT} AI assistants to the chat.`,
-          variant: "destructive",
-        });
-        return prev;
-      }
-      if (prev.find(p => p.id === assistant.id)) {
-        toast({
-          title: "Assistant Already Added",
-          description: `${assistant.name} is already in the chat.`,
-        });
-        return prev;
-      }
-      // Create a new copy of the assistant to avoid potential reference issues with constants
-      const newParticipant = {
-        ...assistant,
-        persona: { ...assistant.persona }, // Deep copy persona
-        memoryBank: assistant.memoryBank ? [...assistant.memoryBank] : [], // Ensure memoryBank is a new array
-      };
-      return [...prev, newParticipant];
-    });
-  }, [toast]);
+    const aiCount = participants.filter(p => p.isAI).length;
+    if (aiCount >= AI_LIMIT) {
+      toast({
+        title: "AI Limit Reached",
+        description: `You can only add up to ${AI_LIMIT} AI assistants to the chat.`,
+        variant: "destructive",
+      });
+      return;
+    }
+    if (participants.some(p => p.id === assistant.id)) {
+      toast({
+        title: "Assistant Already Added",
+        description: `${assistant.name} is already in the chat.`,
+      });
+      return;
+    }
+    
+    const newParticipant = {
+      ...assistant,
+      persona: { ...assistant.persona },
+      memoryBank: assistant.memoryBank ? [...assistant.memoryBank] : [],
+      isTyping: false,
+    };
+    setParticipants([...participants, newParticipant]);
+  }, [toast, participants]);
   
   const addCustomAIAssistant = useCallback(async (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => {
     const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
@@ -359,7 +358,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, []);
 
 
-  const handleSlashCommand = (command: string) => {
+  const handleSlashCommand = useCallback((command: string) => {
     const [cmd, ...args] = command.slice(1).split(' ');
     const botName = args.join(' ');
 
@@ -384,7 +383,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             setMessages(prev => [...prev, systemMessage]);
         }
     }
-  }
+  }, [participants]);
 
   const sendMessage = useCallback(async (text: string) => {
     if (text.startsWith('/')) {
@@ -399,7 +398,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       type: 'user',
     };
     setMessages(prev => [...prev, newMessage]);
-  }, [participants]);
+  }, [handleSlashCommand]);
 
   const clearChat = useCallback(() => {
     setMessages([]);
