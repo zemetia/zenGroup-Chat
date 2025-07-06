@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Bot, PlusCircle, User, Cog, Brain, Pencil } from 'lucide-react';
+import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/lib/hooks/use-chat';
@@ -25,7 +25,7 @@ import { Separator } from './ui/separator';
 import { AIMemoryModal } from './ai-memory-modal';
 
 export function SidebarContent() {
-  const { participants, addAIAssistant, clearChat, customAIs } = useChat();
+  const { participants, addAIAssistant, removeAIParticipant, customAIs } = useChat();
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [selectedAIForPersona, setSelectedAIForPersona] = useState<AIAssistant | null>(null);
@@ -53,6 +53,37 @@ export function SidebarContent() {
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-6">
             
+            <div className="space-y-3">
+              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2"><User className="w-4 h-4" />Participants</h3>
+              <div className="space-y-1">
+                {humanUser && (
+                  <div className="flex items-center p-2">
+                    <Image src={humanUser.avatar} alt={humanUser.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="person avatar" />
+                    <span className="font-semibold text-sm flex items-center gap-2">{humanUser.name}</span>
+                  </div>
+                )}
+                {aiParticipants.map((ai) => (
+                  <div key={ai.id} className="group flex items-center p-2 rounded-md hover:bg-accent">
+                    <Image src={ai.avatar} alt={ai.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="robot face" />
+                    <span className="font-semibold text-sm flex-1">{ai.name}</span>
+                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => setSelectedAIForMemory(ai)}>
+                        <Brain className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
+                        <Cog className="w-4 h-4" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="w-8 h-8 text-destructive/70 hover:text-destructive" onClick={() => removeAIParticipant(ai.id)}>
+                        <LogOut className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <Separator />
+
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2"><Bot className="w-4 h-4" />Available AIs</h3>
@@ -89,34 +120,6 @@ export function SidebarContent() {
                         disabled={participants.some(p => p.id === ai.id)}
                       >
                         <PlusCircle className="w-5 h-5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <Separator />
-
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2"><User className="w-4 h-4" />Participants</h3>
-              <div className="space-y-1">
-                {humanUser && (
-                  <div className="flex items-center p-2">
-                    <Image src={humanUser.avatar} alt={humanUser.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="person avatar" />
-                    <span className="font-semibold text-sm flex items-center gap-2">{humanUser.name}</span>
-                  </div>
-                )}
-                {aiParticipants.map((ai) => (
-                  <div key={ai.id} className="group flex items-center p-2 rounded-md hover:bg-accent">
-                    <Image src={ai.avatar} alt={ai.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="robot face" />
-                    <span className="font-semibold text-sm flex-1">{ai.name}</span>
-                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => setSelectedAIForMemory(ai)}>
-                        <Brain className="w-4 h-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
-                        <Cog className="w-4 h-4" />
                       </Button>
                     </div>
                   </div>
