@@ -2,32 +2,23 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut } from 'lucide-react';
+import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut, KeyRound } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/lib/hooks/use-chat';
 import { AVAILABLE_AI_ASSISTANTS } from '@/lib/constants';
 import type { AIAssistant } from '@/lib/types';
 import { AIPersonaModal } from './ai-persona-modal';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { CreateAIModal } from './create-ai-modal';
 import { Separator } from './ui/separator';
 import { AIMemoryModal } from './ai-memory-modal';
+import { ApiKeyManagerModal } from './api-key-manager-modal';
 
 export function SidebarContent() {
   const { participants, addAIAssistant, removeAIParticipant, customAIs } = useChat();
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [selectedAIForPersona, setSelectedAIForPersona] = useState<AIAssistant | null>(null);
   const [selectedAIForEdit, setSelectedAIForEdit] = useState<AIAssistant | null>(null);
   const [selectedAIForMemory, setSelectedAIForMemory] = useState<AIAssistant | null>(null);
@@ -128,11 +119,18 @@ export function SidebarContent() {
             </div>
           </div>
         </ScrollArea>
+        <div className="p-4 mt-auto border-t">
+            <Button variant="outline" className="w-full" onClick={() => setIsApiKeyModalOpen(true)}>
+                <KeyRound className="mr-2" />
+                Manage API Keys
+            </Button>
+        </div>
       </div>
       {selectedAIForPersona && <AIPersonaModal ai={selectedAIForPersona} isOpen={!!selectedAIForPersona} onOpenChange={() => setSelectedAIForPersona(null)} />}
       <CreateAIModal isOpen={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
       {selectedAIForEdit && <CreateAIModal ai={selectedAIForEdit} isOpen={!!selectedAIForEdit} onOpenChange={() => setSelectedAIForEdit(null)} />}
       {selectedAIForMemory && <AIMemoryModal ai={selectedAIForMemory} isOpen={!!selectedAIForMemory} onOpenChange={() => setSelectedAIForMemory(null)} />}
+      <ApiKeyManagerModal isOpen={isApiKeyModalOpen} onOpenChange={setIsApiKeyModalOpen} />
     </>
   );
 }

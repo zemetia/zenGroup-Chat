@@ -11,7 +11,7 @@ export type Memory = {
 };
 
 export type Participant = {
-  id: string;
+  id:string;
   name: string;
   avatar: string;
   isAI: boolean;
@@ -42,3 +42,9 @@ export type Message = {
     | { type: 'user' | 'ai'; author: Participant; replyToId?: string; }
     | { type: 'system'; author?: never; replyToId?: never; }
 );
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  key: string;
+};
