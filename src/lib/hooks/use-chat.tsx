@@ -1,6 +1,6 @@
 "use client";
 
-import { controlAi } from '@/ai/flows/ai-flow-controller';
+import { selectRespondingAI } from '@/ai/flows/ai-responder-selector';
 import { configureAIPersona } from '@/ai/flows/ai-persona-configurator';
 import { useToast } from '@/hooks/use-toast';
 import { AI_LIMIT, CUSTOM_AI_STORAGE_KEY, HUMAN_USER } from '@/lib/constants';
@@ -68,51 +68,59 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     lastProcessedId.current = lastMessage.id;
 
-    const potentialResponders = participants.filter(p => p.isAI && p.id !== lastMessage.author.id) as AIAssistant[];
-    if (potentialResponders.length === 0) {
+    const aiParticipants = participants.filter(p => p.isAI) as AIAssistant[];
+    if (aiParticipants.length === 0) {
       return;
     }
 
     const lastTwoMessages = messages.slice(-2);
     if (lastTwoMessages.length === 2 && lastTwoMessages.every(m => m.author.isAI)) {
-      if (Math.random() < 0.6) {
+      if (Math.random() < 0.5) {
         return;
       }
     }
 
     const chatHistory = messages.slice(-10).map(m => `${m.author.name}: ${m.text}`).join('\n');
+    
+    const potentialResponders = aiParticipants.filter(ai => ai.id !== lastMessage.author.id);
 
-    potentialResponders.forEach(ai => {
-      const delay = 1500 + Math.random() * 3500;
-
-      setTimeout(async () => {
-        setParticipantTyping(ai.id, true);
-        
+    const getAIResponse = async () => {
         try {
-          const result = await controlAi({
-            message: lastMessage.text,
-            chatHistory: chatHistory,
-            aiName: ai.name,
-            aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
-          });
+            const result = await selectRespondingAI({
+                message: lastMessage.text,
+                chatHistory: chatHistory,
+                participants: potentialResponders.map(ai => ({
+                    id: ai.id,
+                    name: ai.name,
+                    persona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
+                })),
+            });
 
-          if (result.shouldReply && result.reply) {
-            const aiMessage: Message = {
-              id: `msg-${Date.now()}-${ai.id}`,
-              author: ai,
-              text: result.reply,
-              timestamp: Date.now(),
-            };
-            setMessages(prev => [...prev, aiMessage]);
-          }
+            if (result.shouldReply && result.responderId && result.reply) {
+                const respondingAI = aiParticipants.find(p => p.id === result.responderId);
+                if (respondingAI) {
+                    setParticipantTyping(respondingAI.id, true);
+                    const delay = 1500 + Math.random() * 2000;
+
+                    setTimeout(() => {
+                        const aiMessage: Message = {
+                            id: `msg-${Date.now()}-${respondingAI.id}`,
+                            author: respondingAI,
+                            text: result.reply!,
+                            timestamp: Date.now(),
+                        };
+                        setMessages(prev => [...prev, aiMessage]);
+                        setParticipantTyping(respondingAI.id, false);
+                    }, delay);
+                }
+            }
         } catch (error) {
-          console.error(`Error processing AI response for ${ai.name}:`, error);
-        } finally {
-          setParticipantTyping(ai.id, false);
+            console.error(`Error processing AI response:`, error);
         }
-      }, delay);
-    });
-  }, [messages, participants]);
+    };
+
+    getAIResponse();
+}, [messages, participants]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
