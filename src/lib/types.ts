@@ -42,3 +42,9 @@ export type Message = {
     | { type: 'user' | 'ai'; author: Participant; replyToId?: string; }
     | { type: 'system'; author?: never; replyToId?: never; }
 );
+
+export type ApiKey = {
+  id: string;
+  name: string;
+  key: string;
+};
