@@ -110,6 +110,9 @@ export async function getDecisiveAIResponse(
   }
 
   try {
+    // As requested, log the data being sent to the AI prompt for debugging.
+    console.log(`[getDecisiveAIResponse PROMPT DATA for ${controlInput.aiName}]`, JSON.stringify(controlInput, null, 2));
+
     const botAI = genkit({
       plugins: [googleAI({ apiKey: apiKey })],
     });
@@ -134,7 +137,7 @@ export async function getDecisiveAIResponse(
     }
     
     // Log the output for debugging, as requested.
-    console.log(`[getDecisiveAIResponse Output for ${controlInput.aiName}]`, output);
+    console.log(`[getDecisiveAIResponse PARSED OUTPUT for ${controlInput.aiName}]`, output);
     
     return output;
   } catch (error) {
