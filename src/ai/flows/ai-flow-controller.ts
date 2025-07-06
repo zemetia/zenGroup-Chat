@@ -93,6 +93,49 @@ OR
 }
 `;
 
+
+/**
+ * Manually renders a simple Handlebars-like template.
+ * This is a basic implementation for logging purposes and does not support all Handlebars features.
+ * @param template The template string.
+ * @param data The data to inject into the template.
+ * @returns The rendered string.
+ */
+function renderPrompt(template: string, data: ControlAiInput): string {
+    let output = template;
+
+    // Replace simple placeholders
+    output = output.replace(/{{aiName}}/g, data.aiName);
+    output = output.replace(/{{aiPersona}}/g, data.aiPersona);
+    output = output.replace(/"{{message}}"/g, `"${data.message}"`);
+
+    // Handle chat history block
+    const chatHistoryRegex = /\{\{#if chatHistory\}\}([\s\S]*?)\{\{else\}\}([\s\S]*?)\{\{\/if\}\}/g;
+    output = output.replace(chatHistoryRegex, (match, ifBlock, elseBlock) => {
+        if (data.chatHistory) {
+            return ifBlock.replace(/{{chatHistory}}/g, data.chatHistory);
+        } else {
+            return elseBlock;
+        }
+    });
+
+    // Handle memories block
+    const memoriesRegex = /\{\{#if memories\}\}([\s\S]*?)\{\{else\}\}([\s\S]*?)\{\{\/if\}\}/g;
+    output = output.replace(memoriesRegex, (match, ifBlock, elseBlock) => {
+        if (data.memories && data.memories.length > 0) {
+            const eachRegex = /\{\{#each memories\}\}([\s\S]*?)\{\{\/each\}\}/;
+            return ifBlock.replace(eachRegex, (match, eachBlock) => {
+                return data.memories!.map(mem => eachBlock.replace(/-\s*{{{this}}}/, `- ${mem}`)).join('\n');
+            });
+        } else {
+            return elseBlock;
+        }
+    });
+
+    return output;
+}
+
+
 /**
  * Generates a response from an AI assistant after it decides whether it should reply.
  * This function creates a temporary Genkit instance with the provided API key.
@@ -110,19 +153,21 @@ export async function getDecisiveAIResponse(
   }
 
   try {
+    // Manually render the prompt for logging purposes
+    const renderedPrompt = renderPrompt(promptTemplate, controlInput);
+    console.log(`[RENDERED PROMPT for ${controlInput.aiName}]`, renderedPrompt);
+
+
     const botAI = genkit({
       plugins: [googleAI({ apiKey: apiKey })],
     });
 
-    // Define the prompt dynamically for this instance
-    const prompt = botAI.definePrompt({
-      name: `decisivePrompt_${controlInput.aiName.replace(/\s+/g, '')}`,
-      input: { schema: ControlAiInputSchema },
-      output: { schema: ControlAiOutputSchema },
-      prompt: promptTemplate,
+    const result = await botAI.generate({
+        prompt: renderedPrompt,
+        model: 'gemini-pro',
+        output: { schema: ControlAiOutputSchema }
     });
-
-    const result = await prompt(controlInput);
+    
     const output = result.output;
     
     if (!output) {
