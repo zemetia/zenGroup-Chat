@@ -96,24 +96,31 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 })),
             });
 
-            if (result.shouldReply && result.responderId && result.reply) {
-                const respondingAI = aiParticipants.find(p => p.id === result.responderId);
-                if (respondingAI) {
-                    setParticipantTyping(respondingAI.id, true);
-                    const delay = 1500 + Math.random() * 2000;
+            if (result.responses && result.responses.length > 0) {
+              let baseDelay = 0;
+              for (const response of result.responses) {
+                  const respondingAI = aiParticipants.find(p => p.id === response.responderId);
+                  if (respondingAI) {
+                      setParticipantTyping(respondingAI.id, true);
+                      
+                      const typingDuration = 1500 + Math.random() * 2000;
+                      const delay = baseDelay + typingDuration;
 
-                    setTimeout(() => {
-                        const aiMessage: Message = {
-                            id: `msg-${Date.now()}-${respondingAI.id}`,
-                            author: respondingAI,
-                            text: result.reply!,
-                            timestamp: Date.now(),
-                            replyToId: result.replyToId,
-                        };
-                        setMessages(prev => [...prev, aiMessage]);
-                        setParticipantTyping(respondingAI.id, false);
-                    }, delay);
-                }
+                      setTimeout(() => {
+                          const aiMessage: Message = {
+                              id: `msg-${Date.now()}-${respondingAI.id}`,
+                              author: respondingAI,
+                              text: response.reply,
+                              timestamp: Date.now(),
+                              replyToId: response.replyToId,
+                          };
+                          setMessages(prev => [...prev, aiMessage]);
+                          setParticipantTyping(respondingAI.id, false);
+                      }, delay);
+
+                      baseDelay += 2000 + Math.random() * 1500;
+                  }
+              }
             }
         } catch (error) {
             console.error(`Error processing AI response:`, error);

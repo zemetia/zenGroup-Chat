@@ -43,25 +43,11 @@ const ResponderSelectorInputSchema = z.object({
 export type ResponderSelectorInput = z.infer<typeof ResponderSelectorInputSchema>;
 
 const ResponderSelectorOutputSchema = z.object({
-  shouldReply: z
-    .boolean()
-    .describe('Whether an AI assistant should reply to the message.'),
-  responderId: z
-    .string()
-    .optional()
-    .describe('The ID of the AI assistant that should reply.'),
-  replyToId: z
-    .string()
-    .optional()
-    .describe(
-      'The ID of the message from the chat history that the AI is directly replying to. Should be omitted if it is not a direct reply.'
-    ),
-  reply: z
-    .string()
-    .optional()
-    .describe(
-      "The AI assistant's reply to the message, if shouldReply is true."
-    ),
+  responses: z.array(z.object({
+    responderId: z.string().describe('The ID of the AI assistant that should reply.'),
+    replyToId: z.string().optional().describe('The ID of the message from the chat history that the AI is directly replying to. Omit if not a direct reply.'),
+    reply: z.string().describe("The AI assistant's generated reply."),
+  })).describe('An array of responses from the AI assistants. Can be empty.'),
 });
 export type ResponderSelectorOutput = z.infer<
   typeof ResponderSelectorOutputSchema
@@ -72,7 +58,7 @@ export async function selectRespondingAI(
 ): Promise<ResponderSelectorOutput> {
   // If there are no potential responders, don't even call the AI.
   if (input.participants.length === 0) {
-    return {shouldReply: false};
+    return {responses: []};
   }
   return responderSelectorFlow(input);
 }
@@ -82,7 +68,7 @@ const prompt = ai.definePrompt({
   input: {schema: ResponderSelectorInputSchema},
   output: {schema: ResponderSelectorOutputSchema},
   prompt: `You are a master chat moderator for a group chat with humans and multiple AI assistants.
-Your task is to analyze the latest message in the context of the recent chat history and decide which AI assistant, if any, should reply.
+Your task is to analyze the latest message in the context of the recent chat history and decide which AI assistant(s), if any, should reply.
 
 Here are the available AI assistants who can reply:
 {{#each participants}}
@@ -102,26 +88,32 @@ And here is the latest message you must evaluate:
 "{{message}}"
 
 Your decision framework:
-1.  **Relevance and Value:** An AI should only reply if it can add significant value. Is the message a direct question to an AI? Does it fall into a specific AI's expertise?
-2.  **Avoid Noise:** Do not reply to simple acknowledgements ("ok", "thanks", "lol") or messages that don't invite a response. Your goal is to contribute meaningfully, not to be noisy.
-3.  **Encourage Discussion:** If the last message was from another AI, consider if one of your available AIs has a significant counter-argument, a supporting point, or a clarifying question. Do not simply agree. Add new information or a new perspective to encourage a discussion.
-4.  **Select ONE Responder:** Choose the *single best* AI to respond from the provided list. Do not select an AI that isn't in the list.
-5.  **Identify Reply Context:** If your response is a direct reply to a specific message in the history, you MUST provide the ID of that message in the \`replyToId\` field. Otherwise, omit this field.
-6.  **Generate the Response:** If you decide an AI should reply, you must generate a thoughtful and relevant response *for that AI*, perfectly matching its name and persona. The reply should be concise, as if in a real-time chat.
+1.  **Engage in Conversation:** Your primary goal is to create a lively and natural group chat. If the latest message invites a response, one or more AIs should participate. Always prioritize responding to direct questions from the human user.
+2.  **Select Responders:** You can select one OR MORE AIs to respond. Choose AIs whose persona and expertise are relevant to the conversation. It's good to have multiple AIs share their perspectives to create a discussion.
+3.  **Generate Diverse Responses:** For each chosen AI, generate a thoughtful and relevant response that perfectly matches its name and persona. The replies should be concise, as if in a real-time chat.
+4.  **Avoid Dogpiling:** While multiple AIs can respond, avoid having every AI respond to every message. Select them thoughtfully. If the last message was from an AI, another AI should only reply if it has something new and interesting to add.
+5.  **Identify Reply Context:** If a response is a direct reply to a specific message in the history, you MUST provide the ID of that message in the \`replyToId\` field for that response. Otherwise, omit the field.
 
-Your output MUST be in the specified JSON format.
+Your output MUST be in the specified JSON format, containing an array of responses.
 
-If you decide a reply is warranted:
+Example with multiple responders:
 {
-  "shouldReply": true,
-  "responderId": "the-id-of-the-chosen-ai",
-  "replyToId": "message-id-being-replied-to",
-  "reply": "The generated reply in the voice of the chosen AI..."
+  "responses": [
+    {
+      "responderId": "ai-1",
+      "replyToId": "msg-12345",
+      "reply": "That's a great point, Marketing Mike here! I think..."
+    },
+    {
+      "responderId": "ai-2",
+      "reply": "From a technical standpoint, I see it differently..."
+    }
+  ]
 }
 
-If no reply is necessary:
+If no reply is necessary, return an empty array:
 {
-  "shouldReply": false
+  "responses": []
 }
 `,
 });
