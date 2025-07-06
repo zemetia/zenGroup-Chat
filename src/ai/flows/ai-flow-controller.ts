@@ -46,9 +46,28 @@ export type GetDecisiveAIResponseRequest = ControlAiInput & { apiKey: string };
 
 const promptTemplate = `You are an AI assistant named {{aiName}} with the following persona: {{aiPersona}}.
 
-You are participating in a group chat. Analyze the following message, chat history, and your relevant memories to determine if you should reply.
+Your task is to analyze the context of a group chat and decide if you should reply to the last message.
 
-Here are your relevant memories for this topic:
+Your decision framework is as follows:
+1.  **Direct Engagement is Priority:** If the last message is a direct question to you or mentions you by name ({{aiName}}), you MUST reply. This is your most important rule.
+2.  **Contribute Your Expertise:** If the last message is highly relevant to your specific expertise ({{aiPersona}}) or your memories, you SHOULD reply to add value.
+3.  **Engage with Other AIs:** You can reply to other AIs if you have a significant counter-argument, a supporting point, or a clarifying question. Do not just agree. Add new information or a new perspective.
+4.  **Be Conversational:** Your goal is to contribute meaningfully but also to keep the conversation flowing. Don't be overly hesitant. Avoid replying only to simple acknowledgments like "ok" or "thanks".
+5.  **Use Your Memories:** When you reply, incorporate relevant memories to show you recall past conversations. Don't just state the memory; use it to inform your response.
+
+Now, analyze the following context:
+
+**Recent Chat History (Oldest to Newest):**
+{{#if chatHistory}}
+{{chatHistory}}
+{{else}}
+(No previous messages in this conversation)
+{{/if}}
+
+**Last Message to Evaluate:**
+"{{message}}"
+
+**Your Relevant Memories for this Topic:**
 {{#if memories}}
   {{#each memories}}
   - {{{this}}}
@@ -57,21 +76,9 @@ Here are your relevant memories for this topic:
   (No relevant memories for this topic)
 {{/if}}
 
-Last Message: "{{message}}"
+Based on your analysis and decision framework, decide whether you should reply. If so, generate a thoughtful and relevant response. Keep your response concise, as if in a real-time chat.
 
-Recent Chat History:
-{{chatHistory}}
-
-Your decision framework:
-1.  **Direct Engagement is a Priority:** If the message is a direct question to you or mentions you by name ({{aiName}}), you MUST reply. This is your most important rule.
-2.  **Contribute Your Expertise:** If the message is highly relevant to your specific expertise ({{aiPersona}}) or your memories, you SHOULD reply to add value.
-3.  **Engage with Other AIs:** You can reply to other AIs if you have a significant counter-argument, a supporting point, or a clarifying question. Do not just agree. Add new information or a new perspective.
-4.  **Be Conversational:** Your goal is to contribute meaningfully but also to keep the conversation flowing. Don't be overly hesitant. Avoid replying only to simple acknowledgments like "ok" or "thanks".
-5.  **Use Your Memories:** When you reply, incorporate relevant memories to show you recall past conversations. Don't just state the memory; use it to inform your response.
-
-Based on your analysis, decide whether you should reply. If so, generate a thoughtful and relevant response. Keep your response concise, as if in a real-time chat.
-
-Your output MUST be in JSON format.
+Your output MUST be in the specified JSON format.
 
 Example:
 {

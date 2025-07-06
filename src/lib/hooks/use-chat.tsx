@@ -203,9 +203,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 query: lastMessage.text,
                 memoryBank: ai.memoryBank.map(m => m.content),
               });
-
-              const chatHistory = messages
-                .slice(-10) // Get more history for context
+              
+              const historyForAI = messages.slice(0, -1);
+              const chatHistory = historyForAI
+                .slice(-10) // Get up to 10 most recent historical messages
                 .filter(m => m.type !== 'system')
                 .map(m => `${m.author.name}: ${m.text}`)
                 .join('\n');
