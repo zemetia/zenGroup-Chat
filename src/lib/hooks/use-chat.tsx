@@ -1,9 +1,9 @@
 "use client";
 
-import { selectRespondingAI } from '@/ai/flows/ai-responder-selector';
-import { getRelevantMemories, pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
+import { controlAiFlow } from '@/ai/flows/ai-flow-controller';
+import { pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import { useToast } from '@/hooks/use-toast';
-import { AI_LIMIT, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
+import { AI_LIMIT, AVAILABLE_AI_ASSISTANTS, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona, Memory } from '@/lib/types';
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode, useRef } from 'react';
 import { 
@@ -34,50 +34,101 @@ interface ChatContextType {
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 const CHAT_STORAGE_KEY = 'zen-group-chat';
+const MAX_REPLY_DEPTH = 2; // Prevents infinite bot-to-bot conversations
 
 export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([HUMAN_USER]);
   const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
   const { toast } = useToast();
-  const lastProcessedId = useRef<string | null>(null);
 
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
   const participantsRef = useRef(participants);
   participantsRef.current = participants;
 
-  // Load state from local storage and Firestore on initial mount
+  // Load and sanitize state from local storage and Firestore on initial mount
   useEffect(() => {
-    try {
-      const storedData = localStorage.getItem(CHAT_STORAGE_KEY);
-      if (storedData) {
-        const { messages: storedMessages, participants: storedParticipants } = JSON.parse(storedData);
-        setMessages(storedMessages || []);
-        const participantsWithMemory = (storedParticipants || [HUMAN_USER]).map((p: Participant) => 
-            p.isAI ? { ...p, memoryBank: p.memoryBank || [] } : p
-        );
-        setParticipants(participantsWithMemory);
-      }
-    } catch (error) {
-      console.error("Failed to load chat state from local storage", error);
-    }
-    
-    const loadCustomAIs = async () => {
+    const loadState = async () => {
+      let loadedParticipants: Participant[] = [HUMAN_USER];
+      let loadedMessages: Message[] = [];
+      let allAvailableAIs: AIAssistant[] = [...AVAILABLE_AI_ASSISTANTS];
+
+      // 1. Load Custom AIs from Firestore
       try {
-        const aisFromDb = await getCustomAIsFromFirestore();
-        setCustomAIs(aisFromDb);
+        const customAIsFromDb = await getCustomAIsFromFirestore();
+        setCustomAIs(customAIsFromDb);
+        allAvailableAIs.push(...customAIsFromDb);
       } catch (error) {
         console.error("Failed to load custom AIs from Firestore", error);
-        toast({
-          title: "Error Loading AIs",
-          description: "Could not fetch your custom AI assistants from the database.",
-          variant: "destructive",
-        });
+        toast({ title: "Error Loading AIs", description: "Could not fetch custom AI assistants.", variant: "destructive" });
       }
+
+      // 2. Load chat state from local storage
+      try {
+        const storedData = localStorage.getItem(CHAT_STORAGE_KEY);
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          loadedParticipants = parsedData.participants || [HUMAN_USER];
+          loadedMessages = parsedData.messages || [];
+        }
+      } catch (error) {
+        console.error("Failed to parse chat state from local storage", error);
+        localStorage.removeItem(CHAT_STORAGE_KEY); // Clear corrupted data
+      }
+
+      // 3. Sanitize and Reconcile Participants
+      const validParticipants: Participant[] = loadedParticipants
+        .map(p => {
+          if (!p || !p.id) return null;
+          if (p.isAI) {
+            const fullAIData = allAvailableAIs.find(ai => ai.id === p.id);
+            if (fullAIData) {
+              return { ...fullAIData, memoryBank: p.memoryBank || [], isTyping: false }; // Restore full data, keep memory
+            }
+            return null; // This AI doesn't exist anymore, discard
+          }
+          if (p.id === HUMAN_USER.id) {
+            return HUMAN_USER; // It's the human user
+          }
+          return null; // Unknown participant
+        })
+        .filter((p): p is Participant => p !== null);
+
+      if (!validParticipants.find(p => !p.isAI)) {
+        validParticipants.unshift(HUMAN_USER);
+      }
+      setParticipants(validParticipants);
+      participantsRef.current = validParticipants;
+
+      // 4. Sanitize and Reconcile Messages
+      const sanitizedMessages = loadedMessages.map(msg => {
+          if (!msg || !msg.id || !msg.type) return null;
+          if (msg.type === 'system') return msg;
+          
+          if (!msg.author || typeof msg.author.id === 'undefined') {
+              if (msg.type === 'user') {
+                  msg.author = HUMAN_USER;
+              } else {
+                  return null; // Can't determine author, discard
+              }
+          }
+          
+          const participantData = validParticipants.find(p => p.id === msg.author.id);
+          if (!participantData) return null; // Author not in chat, discard message
+          
+          msg.author = participantData; // Ensure author object is the full, correct one
+          return msg;
+      }).filter((m): m is Message => m !== null);
+
+      setMessages(sanitizedMessages);
+      messagesRef.current = sanitizedMessages;
     };
-    loadCustomAIs();
+
+    loadState();
   }, [toast]);
 
-  // Save messages and participants to local storage whenever they change
+  // Save state to local storage whenever it changes
   useEffect(() => {
     try {
       const dataToStore = JSON.stringify({ messages, participants });
@@ -91,159 +142,162 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const updateMemoryAndPrune = useCallback(async (assistantId: string, newMemoryContent: string) => {
     const memoryItem: Memory = { id: `mem-${Date.now()}`, content: newMemoryContent, timestamp: Date.now() };
 
-    const assistant = participantsRef.current.find(p => p.id === assistantId) as AIAssistant;
-    if (!assistant) return;
-
-    let finalMemoryBank = [...assistant.memoryBank, memoryItem];
-
-    if (finalMemoryBank.length > MEMORY_PRUNE_THRESHOLD) {
-        const memoriesToPrune = finalMemoryBank.slice(0, MEMORY_PRUNE_COUNT);
-        const remainingMemories = finalMemoryBank.slice(MEMORY_PRUNE_COUNT);
-        try {
-            const { prunedSummary } = await pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) });
-            if (prunedSummary) {
-                const prunedMemoryItem: Memory = { id: `mem-pruned-${Date.now()}`, content: prunedSummary, timestamp: Date.now() };
-                finalMemoryBank = [prunedMemoryItem, ...remainingMemories];
-            }
-        } catch (e) {
-            console.error("Failed to prune memories", e);
-        }
-    }
-    
     setParticipants(currentParticipants => {
-        return currentParticipants.map(p => {
-            if (p.id === assistantId && p.isAI) {
-                return { ...p, memoryBank: finalMemoryBank };
-            }
-            return p;
-        });
+        const assistantIndex = currentParticipants.findIndex(p => p.id === assistantId);
+        if (assistantIndex === -1) return currentParticipants;
+
+        const assistant = currentParticipants[assistantIndex] as AIAssistant;
+        let finalMemoryBank = [...(assistant.memoryBank || []), memoryItem];
+
+        if (finalMemoryBank.length > MEMORY_PRUNE_THRESHOLD) {
+            const memoriesToPrune = finalMemoryBank.slice(0, MEMORY_PRUNE_COUNT);
+            const remainingMemories = finalMemoryBank.slice(MEMORY_PRUNE_COUNT);
+            pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) })
+                .then(({ prunedSummary }) => {
+                    if (prunedSummary) {
+                        const prunedMemoryItem: Memory = { id: `mem-pruned-${Date.now()}`, content: prunedSummary, timestamp: Date.now() };
+                        const newMemoryBank = [prunedMemoryItem, ...remainingMemories];
+                        setParticipants(prev => prev.map(p => p.id === assistantId ? { ...p, memoryBank: newMemoryBank } : p));
+                    }
+                }).catch(e => console.error("Failed to prune memories", e));
+        }
+        
+        const newParticipants = [...currentParticipants];
+        newParticipants[assistantIndex] = { ...assistant, memoryBank: finalMemoryBank };
+        return newParticipants;
     });
   }, []);
 
-  // Main AI processing logic
-  useEffect(() => {
-    const lastMessage = messages[messages.length - 1];
+  const summarizeLastMessage = useCallback(async (message: Message) => {
+    if (message.type !== 'ai' || !message.author.isAI) return;
+    const aiAuthor = message.author;
+    const conversationSlice = messagesRef.current.slice(-5);
+    const conversationHistory = conversationSlice
+      .filter(m => m.type !== 'system' && m.author)
+      .map(m => `${m.author.name}: ${m.text}`).join('\n');
 
-    if (!lastMessage || lastMessage.id === lastProcessedId.current) {
-      return;
+    try {
+      const { newMemory } = await summarizeAndStore({
+        conversationHistory,
+        botPersona: `Tone: ${aiAuthor.persona.tone}, Expertise: ${aiAuthor.persona.expertise}. ${aiAuthor.persona.additionalInstructions || ''}`,
+      });
+      if (newMemory) {
+        await updateMemoryAndPrune(aiAuthor.id, newMemory);
+      }
+    } catch (e) {
+      console.error("Failed to summarize and store memory", e);
     }
-    lastProcessedId.current = lastMessage.id;
-    
+  }, [updateMemoryAndPrune]);
+  
+  const processAIResponses = useCallback(async (triggeringMessage: Message, depth = 0) => {
+    if (depth > MAX_REPLY_DEPTH) return;
+    if (triggeringMessage.type === 'system' || !triggeringMessage.author) return;
+
     const aiParticipants = participantsRef.current.filter(p => p.isAI) as AIAssistant[];
+    if (aiParticipants.length === 0) return;
 
-    const processTurn = async () => {
-        if (lastMessage.type === 'user') {
-            if (aiParticipants.length === 0) return;
+    const recentHistory = messagesRef.current
+        .slice(-4)
+        .filter(m => m.type !== 'system' && m.author)
+        .map(m => `${m.author.name}: ${m.text}`).join('\n');
 
-            const recentHistory = messages.slice(-4).map(m => m.type !== 'system' ? { id: m.id, name: m.author.name, text: m.text } : null).filter(Boolean) as {id: string; name: string; text: string}[];
-
-            try {
-                const potentialResponders = await Promise.all(aiParticipants
-                    .filter(ai => ai.id !== lastMessage.author.id)
-                    .map(async (ai) => {
-                        const { relevantMemories } = await getRelevantMemories({
-                            query: lastMessage.text,
-                            memoryBank: ai.memoryBank.map(m => m.content),
-                        });
-                        return {
-                            id: ai.id,
-                            name: ai.name,
-                            persona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
-                            memories: relevantMemories,
-                        };
-                    }));
-
-                const result = await selectRespondingAI({
-                    message: lastMessage.text,
-                    recentHistory: recentHistory,
-                    participants: potentialResponders,
-                });
-
-                if (result.responses && result.responses.length > 0) {
-                    let baseDelay = 0;
-                    for (const response of result.responses) {
-                        const respondingAI = aiParticipants.find(p => p.id === response.responderId);
-                        if (respondingAI) {
-                            setParticipantTyping(respondingAI.id, true);
-                            
-                            const typingDuration = 1500 + Math.random() * 2000;
-                            const delay = baseDelay + typingDuration;
-
-                            setTimeout(() => {
-                                const aiMessageAuthor = participantsRef.current.find(p => p.id === respondingAI.id);
-                                
-                                if (aiMessageAuthor) {
-                                    const aiMessage: Message = {
-                                        id: `msg-${Date.now()}-${respondingAI.id}`,
-                                        author: aiMessageAuthor,
-                                        text: response.reply,
-                                        timestamp: Date.now(),
-                                        replyToId: response.replyToId,
-                                        type: 'ai',
-                                    };
-                                    setMessages(prev => [...prev, aiMessage]);
-                                    setParticipantTyping(respondingAI.id, false);
-                                }
-                            }, delay);
-
-                            baseDelay += 2000 + Math.random() * 1500;
-                        }
-                    }
-                }
-            } catch (error) {
-                console.error(`Error processing AI response:`, error);
+    const decisions = await Promise.all(
+      aiParticipants.map(async (ai) => {
+        try {
+          const memories = (ai.memoryBank || []).map(m => m.content);
+          const decision = await controlAiFlow({
+            messageToConsider: {
+              authorName: triggeringMessage.author.name,
+              text: triggeringMessage.text,
+            },
+            recentHistory,
+            aiParticipant: {
+              name: ai.name,
+              persona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
+              memories: memories,
             }
-        } else if (lastMessage.type === 'ai') {
-            const aiAuthor = lastMessage.author as AIAssistant;
-            const conversationSlice = messages.slice(-5);
-            const conversationHistory = conversationSlice
-                .filter(m => m.type !== 'system')
-                .map(m => `${m.author.name}: ${m.text}`).join('\n');
-            
-            try {
-                const { newMemory } = await summarizeAndStore({
-                    conversationHistory,
-                    botPersona: `Tone: ${aiAuthor.persona.tone}, Expertise: ${aiAuthor.persona.expertise}. ${aiAuthor.persona.additionalInstructions || ''}`,
-                });
-
-                if (newMemory) {
-                    await updateMemoryAndPrune(aiAuthor.id, newMemory);
-                }
-            } catch (e) {
-                console.error("Failed to summarize and store memory", e);
-            }
+          });
+          return { ...decision, ai };
+        } catch (error) {
+          console.error(`Error getting decision for ${ai.name}:`, error);
+          return { shouldReply: false, ai };
         }
+      })
+    );
+
+    const replies = decisions.filter(d => d.shouldReply && d.reply);
+
+    for (const reply of replies) {
+      const respondingAI = reply.ai;
+      
+      const thinkingDelay = 500 + Math.random() * 1000;
+      await new Promise(resolve => setTimeout(resolve, thinkingDelay));
+      setParticipants(prev => prev.map(p => p.id === respondingAI.id ? { ...p, isTyping: true } : p));
+
+      const typingDuration = 1000 + Math.random() * 2000;
+      await new Promise(resolve => setTimeout(resolve, typingDuration));
+      
+      const aiMessage: Message = {
+        id: `msg-${Date.now()}-${respondingAI.id}`,
+        author: participantsRef.current.find(p => p.id === respondingAI.id)!,
+        text: reply.reply!,
+        timestamp: Date.now(),
+        type: 'ai',
+      };
+      
+      setParticipants(prev => prev.map(p => p.id === respondingAI.id ? { ...p, isTyping: false } : p));
+      setMessages(prev => [...prev, aiMessage]);
+      
+      await summarizeLastMessage(aiMessage);
+      await processAIResponses(aiMessage, depth + 1);
+    }
+  }, [summarizeLastMessage]);
+  
+  const sendMessage = useCallback(async (text: string) => {
+    if (text.startsWith('/')) { return; }
+    
+    const newMessage: Message = {
+      id: `msg-${Date.now()}`,
+      author: HUMAN_USER,
+      text,
+      timestamp: Date.now(),
+      type: 'user',
     };
     
-    processTurn();
-  }, [messages, updateMemoryAndPrune]);
+    setMessages(prev => [...prev, newMessage]);
+    await processAIResponses(newMessage);
 
-  const setParticipantTyping = (participantId: string, isTyping: boolean) => {
-    setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
-  };
+  }, [processAIResponses]);
+  
+  const clearChat = useCallback(() => {
+    setMessages([]);
+    setParticipants(prev => prev.map(p => p.isAI ? { ...p, memoryBank: [] } : p));
+    localStorage.removeItem(CHAT_STORAGE_KEY);
+    toast({
+        title: "Chat Cleared",
+        description: "The chat history and AI memories have been reset."
+    });
+  }, [toast]);
 
   const addAIAssistant = useCallback((assistant: AIAssistant) => {
     setParticipants(prev => {
       const aiCount = prev.filter(p => p.isAI).length;
       if (aiCount >= AI_LIMIT) {
-        toast({
-          title: "AI Limit Reached",
-          description: `You can only add up to ${AI_LIMIT} AI assistants to the chat.`,
-          variant: "destructive",
-        });
+        toast({ title: "AI Limit Reached", description: `You can only add up to ${AI_LIMIT} AI assistants.`, variant: "destructive" });
         return prev;
       }
       if (prev.find(p => p.id === assistant.id)) {
-        toast({
-          title: "Assistant Already Added",
-          description: `${assistant.name} is already in the chat.`,
-        });
+        toast({ title: "Assistant Already Added", description: `${assistant.name} is already in the chat.` });
         return prev;
       }
       return [...prev, { ...assistant, memoryBank: assistant.memoryBank || [] }];
     });
   }, [toast]);
-  
+
+  const removeAIParticipant = useCallback((assistantId: string) => {
+    setParticipants(prev => prev.filter(p => p.id !== assistantId));
+  }, []);
+
   const addCustomAIAssistant = useCallback(async (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => {
     const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
         ...data,
@@ -254,30 +308,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     try {
         const newId = await addCustomAIToFirestore(newAssistantData);
-        setCustomAIs(prev => [...prev, { ...newAssistantData, id: newId, memoryBank: [] }]);
-        toast({
-            title: "Custom AI Created!",
-            description: `${data.name} is now available to add to the chat.`,
-        });
+        const newAI = { ...newAssistantData, id: newId, memoryBank: [] };
+        setCustomAIs(prev => [...prev, newAI]);
+        toast({ title: "Custom AI Created!", description: `${data.name} is now available.` });
     } catch(error) {
         console.error("Failed to create custom AI", error);
         toast({ title: "Error", description: "Failed to create custom AI.", variant: "destructive" });
     }
   }, [toast]);
 
-  const removeAIParticipant = useCallback((assistantId: string) => {
-    setParticipants(prev => prev.filter(p => p.id !== assistantId));
-  }, []);
-
   const removeCustomAIAssistant = useCallback(async (assistantId: string) => {
     try {
         await deleteCustomAIFromFirestore(assistantId);
         setParticipants(prev => prev.filter(p => p.id !== assistantId));
         setCustomAIs(prev => prev.filter(ai => ai.id !== assistantId));
-        toast({
-            title: "Custom AI Deleted",
-            description: "The custom AI has been permanently deleted.",
-        });
+        toast({ title: "Custom AI Deleted", description: "The custom AI has been permanently deleted." });
     } catch(error) {
         console.error("Failed to delete custom AI", error);
         toast({ title: "Error", description: "Failed to delete custom AI.", variant: "destructive" });
@@ -285,7 +330,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   }, [toast]);
 
   const updateAIPersona = useCallback(async (assistantId: string, persona: Persona, name?: string) => {
-    const assistantToUpdate = customAIs.find(ai => ai.id === assistantId);
+    const allAIs = [...customAIs, ...AVAILABLE_AI_ASSISTANTS];
+    const assistantToUpdate = allAIs.find(ai => ai.id === assistantId);
     try {
         if (assistantToUpdate?.isCustom) {
             await updateCustomAIInFirestore(assistantId, { name, persona });
@@ -301,17 +347,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         setParticipants(prev => prev.map(updateLogic));
         setCustomAIs(prev => prev.map(p => updateLogic(p) as AIAssistant));
         
-        toast({
-            title: "AI Persona Updated",
-            description: `The AI assistant has been successfully updated.`,
-        });
+        toast({ title: "AI Persona Updated", description: `The AI assistant has been successfully updated.` });
     } catch (error) {
         console.error("Failed to update AI persona:", error);
-        toast({
-            title: "Error",
-            description: "Failed to update AI persona. Please try again.",
-            variant: "destructive",
-        });
+        toast({ title: "Error", description: "Failed to update AI persona.", variant: "destructive" });
     }
   }, [toast, customAIs]);
 
@@ -351,64 +390,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       })
     );
   }, []);
-
-
-  const handleSlashCommand = (command: string) => {
-    const [cmd, ...args] = command.slice(1).split(' ');
-    const botName = args.join(' ');
-
-    const bot = participants.find(p => p.isAI && p.name.toLowerCase() === botName.toLowerCase()) as AIAssistant;
-
-    if (cmd === 'show_memories') {
-        let text;
-        if (bot && bot.memoryBank && bot.memoryBank.length > 0) {
-            text = `Memory bank for ${bot.name}:\n` + bot.memoryBank.map((mem, i) => `${i + 1}. ${mem.content}`).join('\n');
-        } else {
-            text = bot ? `${bot.name} has no memories.` : `Bot "${botName}" not found in this chat.`;
-        }
-        const systemMessage: Message = { id: `msg-${Date.now()}`, text, timestamp: Date.now(), type: 'system' };
-        setMessages(prev => [...prev, systemMessage]);
-    } else if (cmd === 'clear_memories') {
-        if (bot) {
-            setParticipants(prev => prev.map(p => p.id === bot.id ? { ...p, memoryBank: [] } : p));
-            const systemMessage: Message = { id: `msg-${Date.now()}`, text: `Memory bank for ${bot.name} has been cleared.`, timestamp: Date.now(), type: 'system' };
-            setMessages(prev => [...prev, systemMessage]);
-        } else {
-            const systemMessage: Message = { id: `msg-${Date.now()}`, text: `Bot "${botName}" not found in this chat.`, timestamp: Date.now(), type: 'system' };
-            setMessages(prev => [...prev, systemMessage]);
-        }
-    }
-  }
-
-  const sendMessage = useCallback(async (text: string) => {
-    if (text.startsWith('/')) {
-        handleSlashCommand(text);
-        return;
-    }
-    const newMessage: Message = {
-      id: `msg-${Date.now()}`,
-      author: HUMAN_USER,
-      text,
-      timestamp: Date.now(),
-      type: 'user',
-    };
-    setMessages(prev => [...prev, newMessage]);
-  }, [participants]);
-
-  const clearChat = useCallback(() => {
-    setMessages([]);
-    setParticipants(prev => {
-        return [HUMAN_USER, ...prev.filter(p => p.isAI).map(ai => ({...ai, memoryBank: []}))];
-    });
-    lastProcessedId.current = null;
-    const dataToStore = JSON.stringify({ messages: [], participants: participantsRef.current.map(p => p.isAI ? {...p, memoryBank: []} : p) });
-    localStorage.setItem(CHAT_STORAGE_KEY, dataToStore);
-    
-    toast({
-        title: "Chat Cleared",
-        description: "The chat history has been reset."
-    });
-  }, [toast]);
 
   const value = {
     messages,

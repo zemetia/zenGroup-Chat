@@ -1,81 +1,93 @@
 'use server';
 
 /**
- * @fileOverview An AI flow that enables the AI assistant to analyze new messages,
- * determine if they are relevant or important, and decide whether a response is necessary,
- * ensuring efficient and meaningful contributions to the chat.
+ * @fileOverview An AI flow that allows an individual AI assistant to autonomously decide whether to respond to a message.
  *
- * - controlAiFlow - A function that handles the AI assistant's decision-making process for responding to messages.
- * - ControlAiInput - The input type for the controlAiFlow function.
- * - ControlAiOutput - The return type for the controlAiFlow function.
+ * - controlAiFlow - A function that handles the AI assistant's decision-making process.
+ * - ControlAiFlowInput - The input type for the controlAiFlow function.
+ * - ControlAiFlowOutput - The return type for the controlAiFlow function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
-const ControlAiInputSchema = z.object({
-  message: z.string().describe('The content of the message to be analyzed.'),
-  chatHistory: z.string().describe('The recent chat history to provide context.'),
-  aiName: z.string().describe('The name of the AI assistant.'),
-  aiPersona: z.string().describe('The configured persona of the AI assistant (e.g., tone, expertise).'),
+const ControlAiFlowInputSchema = z.object({
+  messageToConsider: z.object({
+      authorName: z.string(),
+      text: z.string(),
+  }).describe("The specific message the AI is currently evaluating."),
+  recentHistory: z.string().describe('The last 4 messages in the chat to provide conversational context.'),
+  aiParticipant: z.object({
+      name: z.string().describe("The AI's own name."),
+      persona: z.string().describe("The AI's detailed persona, including tone, expertise, and specific instructions."),
+      memories: z.array(z.string()).describe("A list of key facts and summaries the AI has remembered from past conversations."),
+  }).describe("The full details of the AI assistant that is making the decision.")
 });
-export type ControlAiInput = z.infer<typeof ControlAiInputSchema>;
+export type ControlAiFlowInput = z.infer<typeof ControlAiFlowInputSchema>;
 
-const ControlAiOutputSchema = z.object({
-  shouldReply: z.boolean().describe('Whether the AI assistant should reply to the message.'),
-  reply: z.string().optional().describe('The AI assistant\'s reply to the message, if shouldReply is true.'),
+const ControlAiFlowOutputSchema = z.object({
+  shouldReply: z.boolean().describe('Whether the AI has decided to reply to the message.'),
+  reply: z.string().optional().describe('The content of the AI\'s reply. This should only be present if shouldReply is true.'),
 });
-export type ControlAiOutput = z.infer<typeof ControlAiOutputSchema>;
+export type ControlAiFlowOutput = z.infer<typeof ControlAiFlowOutputSchema>;
 
-export async function controlAi(input: ControlAiInput): Promise<ControlAiOutput> {
-  return controlAiFlow(input);
+export async function controlAiFlow(input: ControlAiFlowInput): Promise<ControlAiFlowOutput> {
+  return flow(input);
 }
 
 const prompt = ai.definePrompt({
   name: 'controlAiPrompt',
-  input: {schema: ControlAiInputSchema},
-  output: {schema: ControlAiOutputSchema},
-  prompt: `You are an AI assistant named {{aiName}} with the following persona: {{aiPersona}}.
+  input: {schema: ControlAiFlowInputSchema},
+  output: {schema: ControlAiFlowOutputSchema},
+  prompt: `You are an AI assistant in a group chat. Your name is {{aiParticipant.name}} and your persona is: "{{aiParticipant.persona}}".
 
-You are participating in a group chat. Analyze the following message and the recent chat history to determine if you should reply.
+You must make a STRICT decision about whether to reply to the latest message. Do not reply to be polite or to acknowledge something. ONLY reply if the message meets one of these criteria:
+1.  The message directly mentions you by your name, "{{aiParticipant.name}}".
+2.  The message is highly and directly relevant to your specific expertise and persona.
+3.  The message asks a question you are uniquely qualified to answer based on your expertise.
 
-Last Message: "{{message}}"
+Analyze the following information:
 
-Recent Chat History:
-{{chatHistory}}
+**Your Memories:**
+{{#if aiParticipant.memories}}
+{{#each aiParticipant.memories}}
+- {{{this}}}
+{{/each}}
+{{else}}
+You have no memories.
+{{/if}}
 
-Your decision framework:
-- Is the message a direct question to you or mentions you by name ({{aiName}})? If yes, you should probably reply.
-- Is the message highly relevant to your specific expertise where you can provide unique value? If yes, consider replying.
-- Is it a response from another AI? You may reply if you have a significant counter-argument, a supporting point, or a clarifying question. Do not simply agree. Add new information or a new perspective.
-- Avoid replying to simple acknowledgments ("ok", "thanks") or messages that don't invite a response. Your goal is to contribute meaningfully, not to be noisy.
+**Recent Chat History (for context):**
+{{recentHistory}}
 
-Based on your analysis, decide whether you should reply. If so, generate a thoughtful and relevant response. Keep your response concise, as if in a real-time chat.
+**The Message to Consider:**
+{{messageToConsider.authorName}}: "{{messageToConsider.text}}"
 
-Your output MUST be in JSON format.
+---
+**Your Task:**
+Based on your strict decision framework, your persona, your memories, and the chat context, decide if you should reply.
 
-Example:
-{
-  "shouldReply": true,
-  "reply": "I have a different perspective on that..."
-}
-
-OR
-
-{
-  "shouldReply": false
-}
+- If you decide to reply, set "shouldReply" to true and write a concise, relevant response that is consistent with your persona.
+- If you decide NOT to reply, set "shouldReply" to false and do not provide a reply.
 `,
 });
 
-const controlAiFlow = ai.defineFlow(
+const flow = ai.defineFlow(
   {
     name: 'controlAiFlow',
-    inputSchema: ControlAiInputSchema,
-    outputSchema: ControlAiOutputSchema,
+    inputSchema: ControlAiFlowInputSchema,
+    outputSchema: ControlAiFlowOutputSchema,
   },
   async input => {
+    // Prevent AI from replying to itself if it was the last one to speak.
+    if (input.messageToConsider.authorName === input.aiParticipant.name) {
+        return { shouldReply: false };
+    }
     const {output} = await prompt(input);
+    // Ensure that if shouldReply is false, reply is not sent.
+    if (!output?.shouldReply) {
+        return { shouldReply: false };
+    }
     return output!;
   }
 );
