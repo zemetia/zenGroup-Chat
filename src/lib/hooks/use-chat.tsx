@@ -206,7 +206,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               
               const historyForAI = messages.slice(0, -1);
               const chatHistory = historyForAI
-                .slice(-10) // Get up to 10 most recent historical messages
+                .slice(-4) // Get up to 4 most recent historical messages
                 .filter(m => m.type !== 'system')
                 .map(m => `${m.author.name}: ${m.text}`)
                 .join('\n');
