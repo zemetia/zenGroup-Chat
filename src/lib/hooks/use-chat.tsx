@@ -211,14 +211,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 .map(m => `${m.author.name}: ${m.text}`)
                 .join('\n');
 
-              const response = await getDecisiveAIResponse({
+              const promptInput = {
                 apiKey: assignedKey.key,
                 aiName: ai.name,
                 aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
                 message: lastMessage.text,
                 chatHistory: chatHistory,
                 memories: relevantMemories,
-              });
+              };
+              
+              console.log(`[AI Prompt Input - ${ai.name}]`, JSON.stringify(promptInput, null, 2));
+
+              const response = await getDecisiveAIResponse(promptInput);
               
               // As requested, log the raw decision from the AI.
               console.log(`[AI Decision - ${ai.name}]`, response);
