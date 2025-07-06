@@ -3,15 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useChat } from "@/lib/hooks/use-chat";
 import { cn } from "@/lib/utils";
-import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Bot, User, ArrowDown, CornerUpLeft, Info } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function ChatMessages() {
   const { messages, participants } = useChat();
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
-  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const [showScrollDownButton, setShowScrollDownButton] = useState(false);
   const atBottomRef = useRef(true);
 
@@ -37,14 +35,11 @@ export function ChatMessages() {
   };
 
   useEffect(() => {
-    const viewport = scrollAreaRef.current?.querySelector<HTMLDivElement>(
-      '[data-radix-scroll-area-viewport]'
-    );
+    const viewport = viewportRef.current;
     
     if (viewport) {
-      viewportRef.current = viewport;
-
       const handleScroll = () => {
+        if (!viewport) return;
         const { scrollTop, scrollHeight, clientHeight } = viewport;
         const isAtBottom = scrollHeight - scrollTop - clientHeight < 5;
         atBottomRef.current = isAtBottom;
@@ -58,7 +53,7 @@ export function ChatMessages() {
         viewport.removeEventListener("scroll", handleScroll);
       };
     }
-  }, [scrollAreaRef, messages]);
+  }, []);
 
   useEffect(() => {
     if (atBottomRef.current) {
@@ -74,7 +69,7 @@ export function ChatMessages() {
 
   return (
     <div className="flex-1 relative">
-      <ScrollArea className="absolute inset-0" ref={scrollAreaRef}>
+      <div className="absolute inset-0 overflow-y-auto" ref={viewportRef}>
         <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
           {messages.map((message) => {
             if (message.type === 'system') {
@@ -169,7 +164,7 @@ export function ChatMessages() {
               </div>
           ))}
         </div>
-      </ScrollArea>
+      </div>
       {showScrollDownButton && (
         <Button
             onClick={() => scrollToBottom('smooth')}
