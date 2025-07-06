@@ -38,8 +38,12 @@ export function SidebarContent() {
   return (
     <>
       <div className="flex flex-col h-full bg-card border-r">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">Controls</h2>
+           <Button variant="ghost" size="icon" onClick={() => setIsApiKeyModalOpen(true)}>
+            <KeyRound className="h-5 w-5" />
+            <span className="sr-only">Manage API Keys</span>
+          </Button>
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-6">
@@ -119,12 +123,6 @@ export function SidebarContent() {
             </div>
           </div>
         </ScrollArea>
-        <div className="p-4 mt-auto border-t">
-            <Button variant="outline" className="w-full" onClick={() => setIsApiKeyModalOpen(true)}>
-                <KeyRound className="mr-2" />
-                Manage API Keys
-            </Button>
-        </div>
       </div>
       {selectedAIForPersona && <AIPersonaModal ai={selectedAIForPersona} isOpen={!!selectedAIForPersona} onOpenChange={() => setSelectedAIForPersona(null)} />}
       <CreateAIModal isOpen={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
