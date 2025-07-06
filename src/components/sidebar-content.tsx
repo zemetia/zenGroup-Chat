@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut, KeyRound } from 'lucide-react';
+import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut, KeyRound, Trash2 } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/lib/hooks/use-chat';
@@ -13,9 +13,20 @@ import { CreateAIModal } from './create-ai-modal';
 import { Separator } from './ui/separator';
 import { AIMemoryModal } from './ai-memory-modal';
 import { ApiKeyModal } from './api-key-modal';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export function SidebarContent() {
-  const { participants, addAIAssistant, removeAIParticipant, customAIs } = useChat();
+  const { participants, addAIAssistant, removeAIParticipant, customAIs, removeCustomAIAssistant } = useChat();
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
@@ -101,11 +112,32 @@ export function SidebarContent() {
                       <p className="font-semibold text-sm">{ai.name}</p>
                       <p className="text-xs text-muted-foreground line-clamp-1">{ai.description}</p>
                     </div>
-                    <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
+                    <div className="flex items-center ml-2">
                       {ai.isCustom && (
-                        <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
-                          <Pencil className="w-4 h-4" />
-                        </Button>
+                        <>
+                          <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => handleConfigureClick(ai)}>
+                            <Pencil className="w-4 h-4" />
+                          </Button>
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button size="icon" variant="ghost" className="w-8 h-8 text-destructive/70 hover:text-destructive">
+                                <Trash2 className="w-4 h-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  This will permanently delete the AI assistant "{ai.name}". This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => removeCustomAIAssistant(ai.id)} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        </>
                       )}
                       <Button
                         size="icon"
