@@ -120,6 +120,10 @@ export async function getDecisiveAIResponse(
       console.error(`AI model failed to return a valid response object for ${controlInput.aiName}. The prompt output was null or undefined.`);
       return { shouldReply: false };
     }
+    
+    // Log the output for debugging, as requested.
+    console.log(`[getDecisiveAIResponse Output for ${controlInput.aiName}]`, output);
+    
     return output;
   } catch (error) {
     console.error(

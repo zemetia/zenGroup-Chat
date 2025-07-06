@@ -1,7 +1,7 @@
 "use client";
 
 import { getRelevantMemories, pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
-import { selectRespondingAI, type ResponderSelectorInput } from '@/ai/flows/ai-responder-selector';
+import { getDecisiveAIResponse } from '@/ai/flows/ai-flow-controller';
 import { useToast } from '@/hooks/use-toast';
 import { HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona, Memory, ApiKey } from '@/lib/types';
@@ -180,88 +180,80 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
     }
 
-    // Task 2: Get AI responses after a user speaks using the director/selector pattern.
-    if (lastMessage.type === 'user' && lastMessage.id !== lastProcessedBotResponseId.current) {
-        if (aiParticipants.length > 0 && isReadyForAIResponse.current) {
-            lastProcessedBotResponseId.current = lastMessage.id;
-            
-            const processAIResponses = async () => {
-                try {
-                    // 1. Construct the input for the selector flow
-                    const recentHistory = messages
-                        .slice(-5, -1) // Last 4 messages before the new one
-                        .filter((m): m is Message & { type: 'user' | 'ai' } => m.type !== 'system')
-                        .map(m => ({
-                            id: m.id,
-                            name: m.author.name,
-                            text: m.text,
-                        }));
-                    
-                    const participantsForFlow = await Promise.all(
-                        aiParticipants.map(async (ai) => {
-                            const { relevantMemories } = await getRelevantMemories({
-                                query: lastMessage.text,
-                                memoryBank: ai.memoryBank.map(m => m.content),
-                            });
-                            return {
-                                id: ai.id,
-                                name: ai.name,
-                                persona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
-                                memories: relevantMemories,
-                            };
-                        })
-                    );
+    // Task 2: Get AI responses after any new user or AI message (decentralized)
+    if ((lastMessage.type === 'user' || lastMessage.type === 'ai') && lastMessage.id !== lastProcessedBotResponseId.current) {
+      if (aiParticipants.length > 0 && isReadyForAIResponse.current) {
+        lastProcessedBotResponseId.current = lastMessage.id;
 
-                    const selectorInput: ResponderSelectorInput = {
-                        message: lastMessage.text,
-                        recentHistory,
-                        participants: participantsForFlow,
+        aiParticipants.forEach((ai, index) => {
+          // An AI should not respond to its own message.
+          if (ai.id === lastMessage.author?.id) {
+            return;
+          }
+
+          const processAIResponse = async () => {
+            const assignedKey = apiKeys.find(key => key.id === ai.apiKeyId);
+            if (!assignedKey) {
+              console.warn(`No API key found for ${ai.name}, skipping response.`);
+              return;
+            }
+
+            try {
+              const { relevantMemories } = await getRelevantMemories({
+                query: lastMessage.text,
+                memoryBank: ai.memoryBank.map(m => m.content),
+              });
+
+              const chatHistory = messages
+                .slice(-10) // Get more history for context
+                .filter(m => m.type !== 'system')
+                .map(m => `${m.author.name}: ${m.text}`)
+                .join('\n');
+
+              const response = await getDecisiveAIResponse({
+                apiKey: assignedKey.key,
+                aiName: ai.name,
+                aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
+                message: lastMessage.text,
+                chatHistory: chatHistory,
+                memories: relevantMemories,
+              });
+              
+              // As requested, log the raw decision from the AI.
+              console.log(`[AI Decision - ${ai.name}]`, response);
+
+              if (response.shouldReply && response.reply) {
+                // Stagger responses for a more natural feel
+                const thinkingDelay = 1000 + (index * 500) + Math.random() * 1500;
+                
+                setTimeout(() => {
+                  setParticipantTyping(ai.id, true);
+                  
+                  const typingDuration = 1000 + Math.random() * 1500;
+                  setTimeout(() => {
+                    const aiMessage: Message = {
+                      id: `msg-${Date.now()}-${ai.id}`,
+                      author: ai,
+                      text: response.reply!,
+                      timestamp: Date.now(),
+                      type: 'ai',
                     };
+                    setMessages(prev => [...prev, aiMessage]);
+                    setParticipantTyping(ai.id, false);
+                  }, typingDuration);
 
-                    // 2. Call the single, robust selector flow
-                    const { responses } = await selectRespondingAI(selectorInput);
-                    
-                    // 3. Process each decided response
-                    if (responses && responses.length > 0) {
-                        responses.forEach((response, index) => {
-                            const ai = aiParticipants.find(p => p.id === response.responderId);
-                            if (ai) {
-                                // Stagger responses for a more natural feel
-                                const responseDelay = 500 + (index * 500) + Math.random() * 1000;
-                                setTimeout(() => {
-                                    setParticipantTyping(ai.id, true);
-                                    
-                                    const typingDuration = 800 + Math.random() * 1200;
-                                    setTimeout(() => {
-                                        const aiMessage: Message = {
-                                            id: `msg-${Date.now()}-${ai.id}`,
-                                            author: ai,
-                                            text: response.reply,
-                                            timestamp: Date.now(),
-                                            type: 'ai',
-                                            replyToId: response.replyToId,
-                                        };
-                                        setMessages(prev => [...prev, aiMessage]);
-                                        setParticipantTyping(ai.id, false);
-                                    }, typingDuration);
+                }, thinkingDelay);
+              }
+            } catch (error) {
+              console.error(`Error processing response for ${ai.name}:`, error);
+            }
+          };
 
-                                }, responseDelay);
-                            }
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error in AI director flow:', error);
-                    toast({
-                        title: 'AI Response Error',
-                        description: 'The AI director failed to generate a response.',
-                        variant: 'destructive',
-                    });
-                }
-            };
-            processAIResponses();
-        }
+          processAIResponse();
+        });
+      }
     }
-  }, [messages, updateMemoryAndPrune, toast]);
+  }, [messages, updateMemoryAndPrune, toast, apiKeys]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
