@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from './ui/badge';
 
 export function SidebarContent() {
   const { participants, addAIAssistant, removeAIParticipant, customAIs, removeCustomAIAssistant } = useChat();
@@ -69,9 +70,14 @@ export function SidebarContent() {
                   </div>
                 )}
                 {aiParticipants.map((ai) => (
-                  <div key={ai.id} className="group flex items-center p-2 rounded-md hover:bg-accent">
+                  <div key={ai.id} className="group flex items-start p-2 rounded-md hover:bg-accent">
                     <Image src={ai.avatar} alt={ai.name} width={32} height={32} className="rounded-full mr-3" data-ai-hint="robot face" />
-                    <span className="font-semibold text-sm flex-1">{ai.name}</span>
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{ai.name}</p>
+                       {ai.apiKeyName && (
+                        <Badge variant="outline" className="text-xs mt-1 font-mono py-0">{ai.apiKeyName}</Badge>
+                      )}
+                    </div>
                     <div className="flex opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button size="icon" variant="ghost" className="w-8 h-8" onClick={() => setSelectedAIForMemory(ai)}>
                         <Brain className="w-4 h-4" />

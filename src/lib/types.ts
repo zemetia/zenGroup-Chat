@@ -20,6 +20,8 @@ export type Participant = {
   isTyping?: boolean;
   isCustom?: boolean;
   memoryBank?: Memory[];
+  apiKeyId?: string;
+  apiKeyName?: string;
 };
 
 export type AIAssistant = Omit<Participant, 'isAI' | 'memoryBank'> & {
@@ -28,9 +30,11 @@ export type AIAssistant = Omit<Participant, 'isAI' | 'memoryBank'> & {
   persona: Persona;
   isCustom?: boolean;
   memoryBank: Memory[];
+  apiKeyId?: string;
+  apiKeyName?: string;
 };
 
-export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping' | 'isCustom' | 'memoryBank'> & {
+export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping' | 'isCustom' | 'memoryBank' | 'apiKeyId' | 'apiKeyName'> & {
   isAI: false;
 };
 

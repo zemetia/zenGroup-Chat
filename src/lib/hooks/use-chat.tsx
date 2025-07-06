@@ -1,10 +1,10 @@
 "use client";
 
-import { selectRespondingAI } from '@/ai/flows/ai-responder-selector';
-import { getRelevantMemories, pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
+import { getDecisiveAIResponse } from '@/ai/flows/ai-flow-controller';
+import { pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import { useToast } from '@/hooks/use-toast';
 import { AI_LIMIT, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
-import type { AIAssistant, Message, Participant, Persona, Memory } from '@/lib/types';
+import type { AIAssistant, Message, Participant, Persona, Memory, ApiKey } from '@/lib/types';
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode, useRef } from 'react';
 import { 
   addCustomAIToFirestore, 
@@ -12,6 +12,7 @@ import {
   getCustomAIsFromFirestore, 
   updateCustomAIInFirestore 
 } from '../services/aiService';
+import { getApiKeysAction } from '@/app/actions';
 
 
 interface ChatContextType {
@@ -39,21 +40,24 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [participants, setParticipants] = useState<Participant[]>([HUMAN_USER]);
   const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([]);
   const { toast } = useToast();
   const lastProcessedId = useRef<string | null>(null);
+  const nextApiKeyIndexRef = useRef(0);
 
   const participantsRef = useRef(participants);
   participantsRef.current = participants;
 
-  // Load state from local storage and Firestore on initial mount
+  // Load state from local storage and remote databases on initial mount
   useEffect(() => {
+    // Load local chat state
     try {
       const storedData = localStorage.getItem(CHAT_STORAGE_KEY);
       if (storedData) {
         const { messages: storedMessages, participants: storedParticipants } = JSON.parse(storedData);
         setMessages(storedMessages || []);
         const participantsWithMemory = (storedParticipants || [HUMAN_USER]).map((p: Participant) => 
-            p.isAI ? { ...p, memoryBank: p.memoryBank || [] } : p
+            p.isAI ? { ...p, memoryBank: p.memoryBank || [], apiKeyId: p.apiKeyId, apiKeyName: p.apiKeyName } : p
         );
         setParticipants(participantsWithMemory);
       }
@@ -61,20 +65,38 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       console.error("Failed to load chat state from local storage", error);
     }
     
+    // Load custom AIs from Firestore
     const loadCustomAIs = async () => {
       try {
         const aisFromDb = await getCustomAIsFromFirestore();
         setCustomAIs(aisFromDb);
       } catch (error) {
         console.error("Failed to load custom AIs from Firestore", error);
-        toast({
-          title: "Error Loading AIs",
-          description: "Could not fetch your custom AI assistants from the database.",
-          variant: "destructive",
-        });
+        toast({ title: "Error Loading AIs", description: "Could not fetch your custom AI assistants.", variant: "destructive" });
       }
     };
+
+    // Load API Keys from Firestore
+    const loadApiKeys = async () => {
+        try {
+            const keys = await getApiKeysAction();
+            setApiKeys(keys);
+            if (keys.length === 0) {
+              toast({
+                title: "No API Keys Found",
+                description: "Please add a Gemini API key in the Controls sidebar to enable AI responses.",
+                variant: "destructive",
+                duration: 5000,
+              });
+            }
+        } catch (error) {
+            console.error("Failed to load API keys", error);
+            toast({ title: "Error Loading API Keys", description: "Could not fetch API keys.", variant: "destructive" });
+        }
+    }
+
     loadCustomAIs();
+    loadApiKeys();
   }, [toast]);
 
   // Save messages and participants to local storage whenever they change
@@ -135,63 +157,50 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         if (lastMessage.type === 'user') {
             if (aiParticipants.length === 0) return;
 
-            const recentHistory = messages.slice(-4).map(m => m.type !== 'system' ? { id: m.id, name: m.author.name, text: m.text } : null).filter(Boolean) as {id: string; name: string; text: string}[];
+            const chatHistoryText = messages
+                .slice(-5, -1) // Get 4 messages before the last one
+                .filter(m => m.type !== 'system')
+                .map(m => `${m.author.name}: ${m.text}`).join('\n');
 
-            try {
-                const potentialResponders = await Promise.all(aiParticipants
-                    .filter(ai => ai.id !== lastMessage.author.id)
-                    .map(async (ai) => {
-                        const { relevantMemories } = await getRelevantMemories({
-                            query: lastMessage.text,
-                            memoryBank: ai.memoryBank.map(m => m.content),
-                        });
-                        return {
-                            id: ai.id,
-                            name: ai.name,
-                            persona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
-                            memories: relevantMemories,
-                        };
-                    }));
-
-                const result = await selectRespondingAI({
-                    message: lastMessage.text,
-                    recentHistory: recentHistory,
-                    participants: potentialResponders,
-                });
-
-                if (result.responses && result.responses.length > 0) {
-                    let baseDelay = 0;
-                    for (const response of result.responses) {
-                        const respondingAI = aiParticipants.find(p => p.id === response.responderId);
-                        if (respondingAI) {
-                            setParticipantTyping(respondingAI.id, true);
-                            
-                            const typingDuration = 1500 + Math.random() * 2000;
-                            const delay = baseDelay + typingDuration;
-
-                            setTimeout(() => {
-                                const aiMessageAuthor = participantsRef.current.find(p => p.id === respondingAI.id);
-                                
-                                if (aiMessageAuthor) {
-                                    const aiMessage: Message = {
-                                        id: `msg-${Date.now()}-${respondingAI.id}`,
-                                        author: aiMessageAuthor,
-                                        text: response.reply,
-                                        timestamp: Date.now(),
-                                        replyToId: response.replyToId,
-                                        type: 'ai',
-                                    };
-                                    setMessages(prev => [...prev, aiMessage]);
-                                    setParticipantTyping(respondingAI.id, false);
-                                }
-                            }, delay);
-
-                            baseDelay += 2000 + Math.random() * 1500;
+            for (const ai of aiParticipants) {
+                // Each AI "thinks" for a random amount of time before deciding to respond
+                const thinkingDelay = 1000 + Math.random() * 2500;
+                
+                setTimeout(() => {
+                    (async () => {
+                        const apiKey = apiKeys.find(k => k.id === ai.apiKeyId)?.key;
+                        if (!apiKey) {
+                            console.warn(`No API key found for ${ai.name}, skipping response.`);
+                            return;
                         }
-                    }
-                }
-            } catch (error) {
-                console.error(`Error processing AI response:`, error);
+
+                        setParticipantTyping(ai.id, true);
+                        try {
+                            const response = await getDecisiveAIResponse({
+                                message: lastMessage.text,
+                                chatHistory: chatHistoryText,
+                                aiName: ai.name,
+                                aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
+                                apiKey: apiKey,
+                            });
+
+                            if (response.shouldReply && response.reply) {
+                                const aiMessage: Message = {
+                                    id: `msg-${Date.now()}-${ai.id}`,
+                                    author: ai,
+                                    text: response.reply,
+                                    timestamp: Date.now(),
+                                    type: 'ai',
+                                };
+                                setMessages(prev => [...prev, aiMessage]);
+                            }
+                        } catch (error) {
+                            console.error(`Error getting response from ${ai.name}:`, error);
+                        } finally {
+                            setParticipantTyping(ai.id, false);
+                        }
+                    })();
+                }, thinkingDelay);
             }
         } else if (lastMessage.type === 'ai') {
             const aiAuthor = lastMessage.author as AIAssistant;
@@ -216,13 +225,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     };
     
     processTurn();
-  }, [messages, updateMemoryAndPrune]);
+  }, [messages, updateMemoryAndPrune, apiKeys]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
   };
 
   const addAIAssistant = useCallback((assistant: AIAssistant) => {
+    if (apiKeys.length === 0) {
+      toast({
+        title: "No API Keys Available",
+        description: "Please add at least one Gemini API key before adding an AI.",
+        variant: "destructive",
+      });
+      return;
+    }
     const aiCount = participants.filter(p => p.isAI).length;
     if (aiCount >= AI_LIMIT) {
       toast({
@@ -240,14 +257,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
     
-    const newParticipant = {
+    // Assign an API key using round-robin
+    const assignedKey = apiKeys[nextApiKeyIndexRef.current];
+    nextApiKeyIndexRef.current = (nextApiKeyIndexRef.current + 1) % apiKeys.length;
+
+    const newParticipant: AIAssistant = {
       ...assistant,
       persona: { ...assistant.persona },
       memoryBank: assistant.memoryBank ? [...assistant.memoryBank] : [],
       isTyping: false,
+      apiKeyId: assignedKey.id,
+      apiKeyName: assignedKey.name,
     };
-    setParticipants([...participants, newParticipant]);
-  }, [toast, participants]);
+    setParticipants(prev => [...prev, newParticipant]);
+  }, [toast, participants, apiKeys]);
   
   const addCustomAIAssistant = useCallback(async (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => {
     const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
