@@ -1,12 +1,18 @@
 "use client";
 
 import { selectRespondingAI } from '@/ai/flows/ai-responder-selector';
-import { configureAIPersona } from '@/ai/flows/ai-persona-configurator';
 import { getRelevantMemories, pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import { useToast } from '@/hooks/use-toast';
-import { AI_LIMIT, CUSTOM_AI_STORAGE_KEY, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
+import { AI_LIMIT, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona, Memory } from '@/lib/types';
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode, useRef } from 'react';
+import { 
+  addCustomAIToFirestore, 
+  deleteCustomAIFromFirestore, 
+  getCustomAIsFromFirestore, 
+  updateCustomAIInFirestore 
+} from '../services/aiService';
+
 
 interface ChatContextType {
   messages: Message[];
@@ -19,6 +25,10 @@ interface ChatContextType {
   clearChat: () => void;
   addCustomAIAssistant: (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => void;
   removeCustomAIAssistant: (assistantId: string) => void;
+  // Memory management functions
+  addAIMemory: (assistantId: string, content: string) => void;
+  updateAIMemory: (assistantId: string, memoryId: string, newContent: string) => void;
+  deleteAIMemory: (assistantId: string, memoryId: string) => void;
 }
 
 const ChatContext = createContext<ChatContextType | undefined>(undefined);
@@ -35,43 +45,48 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const participantsRef = useRef(participants);
   participantsRef.current = participants;
 
+  // Load state from local storage and Firestore on initial mount
   useEffect(() => {
     try {
       const storedData = localStorage.getItem(CHAT_STORAGE_KEY);
       if (storedData) {
         const { messages: storedMessages, participants: storedParticipants } = JSON.parse(storedData);
         setMessages(storedMessages || []);
-        // Backwards compatibility for memoryBank
         const participantsWithMemory = (storedParticipants || [HUMAN_USER]).map((p: Participant) => 
             p.isAI ? { ...p, memoryBank: p.memoryBank || [] } : p
         );
         setParticipants(participantsWithMemory);
       }
-      const storedCustomAIs = localStorage.getItem(CUSTOM_AI_STORAGE_KEY);
-      if(storedCustomAIs) {
-        // Backwards compatibility for memoryBank
-        const customAIsWithMemory = JSON.parse(storedCustomAIs).map((ai: AIAssistant) => ({
-            ...ai,
-            memoryBank: ai.memoryBank || [],
-        }));
-        setCustomAIs(customAIsWithMemory);
-      }
     } catch (error) {
-      console.error("Failed to load data from local storage", error);
+      console.error("Failed to load chat state from local storage", error);
     }
-  }, []);
+    
+    const loadCustomAIs = async () => {
+      try {
+        const aisFromDb = await getCustomAIsFromFirestore();
+        setCustomAIs(aisFromDb);
+      } catch (error) {
+        console.error("Failed to load custom AIs from Firestore", error);
+        toast({
+          title: "Error Loading AIs",
+          description: "Could not fetch your custom AI assistants from the database.",
+          variant: "destructive",
+        });
+      }
+    };
+    loadCustomAIs();
+  }, [toast]);
 
+  // Save messages and participants to local storage whenever they change
   useEffect(() => {
     try {
       const dataToStore = JSON.stringify({ messages, participants });
       localStorage.setItem(CHAT_STORAGE_KEY, dataToStore);
-      const customAIsToStore = JSON.stringify(customAIs);
-      localStorage.setItem(CUSTOM_AI_STORAGE_KEY, customAIsToStore);
-    } catch (error)
- {
+    } catch (error) {
       console.error("Failed to save chat to local storage", error);
     }
-  }, [messages, participants, customAIs]);
+  }, [messages, participants]);
+
 
   const updateMemoryAndPrune = useCallback(async (assistantId: string, newMemoryContent: string) => {
     const memoryItem: Memory = { id: `mem-${Date.now()}`, content: newMemoryContent, timestamp: Date.now() };
@@ -105,6 +120,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  // Main AI processing logic
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
 
@@ -228,39 +244,52 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, [toast]);
   
-  const addCustomAIAssistant = useCallback((data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => {
-    const newAssistant: AIAssistant = {
+  const addCustomAIAssistant = useCallback(async (data: Omit<AIAssistant, 'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'> & {description?: string}) => {
+    const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
         ...data,
-        id: `custom-ai-${Date.now()}`,
         avatar: 'https://placehold.co/40x40.png',
         isAI: true,
         isCustom: true,
         description: data.description || `Custom AI with expertise in ${data.persona.expertise}.`,
-        memoryBank: [],
     };
-    setCustomAIs(prev => [...prev, newAssistant]);
-    toast({
-        title: "Custom AI Created!",
-        description: `${data.name} is now available to add to the chat.`,
-    });
+    try {
+        const newId = await addCustomAIToFirestore(newAssistantData);
+        setCustomAIs(prev => [...prev, { ...newAssistantData, id: newId, memoryBank: [] }]);
+        toast({
+            title: "Custom AI Created!",
+            description: `${data.name} is now available to add to the chat.`,
+        });
+    } catch(error) {
+        console.error("Failed to create custom AI", error);
+        toast({ title: "Error", description: "Failed to create custom AI.", variant: "destructive" });
+    }
   }, [toast]);
 
   const removeAIParticipant = useCallback((assistantId: string) => {
     setParticipants(prev => prev.filter(p => p.id !== assistantId));
   }, []);
 
-  const removeCustomAIAssistant = useCallback((assistantId: string) => {
-    setParticipants(prev => prev.filter(p => p.id !== assistantId));
-    setCustomAIs(prev => prev.filter(ai => ai.id !== assistantId));
-    toast({
-        title: "Custom AI Deleted",
-        description: "The custom AI has been permanently deleted.",
-    });
+  const removeCustomAIAssistant = useCallback(async (assistantId: string) => {
+    try {
+        await deleteCustomAIFromFirestore(assistantId);
+        setParticipants(prev => prev.filter(p => p.id !== assistantId));
+        setCustomAIs(prev => prev.filter(ai => ai.id !== assistantId));
+        toast({
+            title: "Custom AI Deleted",
+            description: "The custom AI has been permanently deleted.",
+        });
+    } catch(error) {
+        console.error("Failed to delete custom AI", error);
+        toast({ title: "Error", description: "Failed to delete custom AI.", variant: "destructive" });
+    }
   }, [toast]);
 
   const updateAIPersona = useCallback(async (assistantId: string, persona: Persona, name?: string) => {
+    const assistantToUpdate = customAIs.find(ai => ai.id === assistantId);
     try {
-        await configureAIPersona(persona);
+        if (assistantToUpdate?.isCustom) {
+            await updateCustomAIInFirestore(assistantId, { name, persona });
+        }
         
         const updateLogic = (p: Participant) => {
           if (p.id === assistantId) {
@@ -284,7 +313,45 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             variant: "destructive",
         });
     }
-  }, [toast]);
+  }, [toast, customAIs]);
+
+  const addAIMemory = useCallback((assistantId: string, content: string) => {
+    setParticipants(currentParticipants => 
+      currentParticipants.map(p => {
+        if (p.id === assistantId && p.isAI) {
+          const newMemory: Memory = { id: `mem-${Date.now()}-${Math.random()}`, content, timestamp: Date.now() };
+          return { ...p, memoryBank: [...(p.memoryBank || []), newMemory] };
+        }
+        return p;
+      })
+    );
+  }, []);
+
+  const updateAIMemory = useCallback((assistantId: string, memoryId: string, newContent: string) => {
+    setParticipants(currentParticipants =>
+      currentParticipants.map(p => {
+        if (p.id === assistantId && p.isAI) {
+          const updatedMemoryBank = (p.memoryBank || []).map(mem => 
+            mem.id === memoryId ? { ...mem, content: newContent } : mem
+          );
+          return { ...p, memoryBank: updatedMemoryBank };
+        }
+        return p;
+      })
+    );
+  }, []);
+
+  const deleteAIMemory = useCallback((assistantId: string, memoryId: string) => {
+    setParticipants(currentParticipants =>
+      currentParticipants.map(p => {
+        if (p.id === assistantId && p.isAI) {
+          return { ...p, memoryBank: (p.memoryBank || []).filter(mem => mem.id !== memoryId) };
+        }
+        return p;
+      })
+    );
+  }, []);
+
 
   const handleSlashCommand = (command: string) => {
     const [cmd, ...args] = command.slice(1).split(' ');
@@ -334,7 +401,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         return [HUMAN_USER, ...prev.filter(p => p.isAI).map(ai => ({...ai, memoryBank: []}))];
     });
     lastProcessedId.current = null;
-    // Don't remove participants from local storage on clear, just reset their memory
     const dataToStore = JSON.stringify({ messages: [], participants: participantsRef.current.map(p => p.isAI ? {...p, memoryBank: []} : p) });
     localStorage.setItem(CHAT_STORAGE_KEY, dataToStore);
     
@@ -355,6 +421,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     clearChat,
     addCustomAIAssistant,
     removeCustomAIAssistant,
+    addAIMemory,
+    updateAIMemory,
+    deleteAIMemory,
   };
 
   return <ChatContext.Provider value={value}>{children}</ChatContext.Provider>;
