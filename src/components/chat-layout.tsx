@@ -28,7 +28,7 @@ export default function ChatLayout() {
                     <AppSidebarContent />
                 </Sidebar>
                 <SidebarInset className="flex flex-col flex-1">
-                     <header className="p-4 border-b flex items-center justify-between sticky top-0 bg-background/80 backdrop-blur-sm z-10">
+                     <header className="p-4 border-b flex items-center justify-between bg-background shrink-0">
                         <div className="flex items-center gap-3">
                             <Bot className="w-8 h-8 text-primary" />
                             <h1 className="text-xl font-semibold tracking-tight font-headline">ZenGroup Chat</h1>
