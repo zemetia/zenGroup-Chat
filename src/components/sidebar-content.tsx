@@ -2,32 +2,23 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut } from 'lucide-react';
+import { Bot, PlusCircle, User, Cog, Brain, Pencil, LogOut, KeyRound } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Button } from '@/components/ui/button';
 import { useChat } from '@/lib/hooks/use-chat';
 import { AVAILABLE_AI_ASSISTANTS } from '@/lib/constants';
 import type { AIAssistant } from '@/lib/types';
 import { AIPersonaModal } from './ai-persona-modal';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { CreateAIModal } from './create-ai-modal';
 import { Separator } from './ui/separator';
 import { AIMemoryModal } from './ai-memory-modal';
+import { ApiKeyModal } from './api-key-modal';
 
 export function SidebarContent() {
   const { participants, addAIAssistant, removeAIParticipant, customAIs } = useChat();
   
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [selectedAIForPersona, setSelectedAIForPersona] = useState<AIAssistant | null>(null);
   const [selectedAIForEdit, setSelectedAIForEdit] = useState<AIAssistant | null>(null);
   const [selectedAIForMemory, setSelectedAIForMemory] = useState<AIAssistant | null>(null);
@@ -47,8 +38,12 @@ export function SidebarContent() {
   return (
     <>
       <div className="flex flex-col h-full bg-card border-r">
-        <div className="p-4 border-b">
+        <div className="p-4 border-b flex items-center justify-between">
           <h2 className="text-lg font-semibold tracking-tight">Controls</h2>
+          <Button variant="ghost" size="icon" className="w-8 h-8" onClick={() => setIsApiKeyModalOpen(true)}>
+            <KeyRound className="w-4 h-4" />
+            <span className="sr-only">Manage API Keys</span>
+          </Button>
         </div>
         <ScrollArea className="flex-1">
           <div className="p-4 space-y-6">
@@ -133,6 +128,7 @@ export function SidebarContent() {
       <CreateAIModal isOpen={isCreateModalOpen} onOpenChange={setIsCreateModalOpen} />
       {selectedAIForEdit && <CreateAIModal ai={selectedAIForEdit} isOpen={!!selectedAIForEdit} onOpenChange={() => setSelectedAIForEdit(null)} />}
       {selectedAIForMemory && <AIMemoryModal ai={selectedAIForMemory} isOpen={!!selectedAIForMemory} onOpenChange={() => setSelectedAIForMemory(null)} />}
+      <ApiKeyModal isOpen={isApiKeyModalOpen} onOpenChange={setIsApiKeyModalOpen} />
     </>
   );
 }
