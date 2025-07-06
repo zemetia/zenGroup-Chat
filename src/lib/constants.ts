@@ -19,6 +19,7 @@ export const AVAILABLE_AI_ASSISTANTS: AIAssistant[] = [
       tone: 'Enthusiastic and creative',
       expertise: 'Marketing and Branding',
     },
+    memoryBank: [],
   },
   {
     id: 'ai-2',
@@ -31,6 +32,7 @@ export const AVAILABLE_AI_ASSISTANTS: AIAssistant[] = [
       tone: 'Precise and knowledgeable',
       expertise: 'Software Engineering',
     },
+    memoryBank: [],
   },
   {
     id: 'ai-3',
@@ -43,6 +45,7 @@ export const AVAILABLE_AI_ASSISTANTS: AIAssistant[] = [
       tone: 'Imaginative and eloquent',
       expertise: 'Creative Writing',
     },
+    memoryBank: [],
   },
   {
     id: 'ai-4',
@@ -55,9 +58,12 @@ export const AVAILABLE_AI_ASSISTANTS: AIAssistant[] = [
       tone: 'Friendly and patient',
       expertise: 'Customer Support',
     },
+    memoryBank: [],
   },
 ];
 
 export const AI_LIMIT = 3;
+export const MEMORY_PRUNE_THRESHOLD = 5;
+export const MEMORY_PRUNE_COUNT = 3;
 
 export const CUSTOM_AI_STORAGE_KEY = 'zen-group-chat-custom-ai';

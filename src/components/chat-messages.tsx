@@ -6,7 +6,7 @@ import { useChat } from "@/lib/hooks/use-chat";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Bot, User, ArrowDown, CornerUpLeft } from "lucide-react";
+import { Bot, User, ArrowDown, CornerUpLeft, Info } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function ChatMessages() {
@@ -78,6 +78,15 @@ export function ChatMessages() {
       <ScrollArea className="absolute inset-0" ref={scrollAreaRef}>
         <div className="p-4 md:p-6 space-y-4 max-w-4xl mx-auto">
           {messages.map((message) => {
+            if (message.type === 'system') {
+                return (
+                    <div key={message.id} className="flex items-center justify-center gap-2 text-center text-sm text-muted-foreground p-2 my-2 rounded-md bg-secondary">
+                        <Info className="w-4 h-4" />
+                        <p className="whitespace-pre-wrap">{message.text}</p>
+                    </div>
+                );
+            }
+
             const repliedToMessage = message.replyToId
               ? messages.find((m) => m.id === message.replyToId)
               : null;
@@ -107,7 +116,7 @@ export function ChatMessages() {
                 >
                   <p className="font-bold text-sm mb-1">{message.author.name}</p>
                   
-                  {repliedToMessage && (
+                  {repliedToMessage && repliedToMessage.type !== 'system' && (
                     <button
                       onClick={() => handleReplyClick(repliedToMessage.id)}
                       className="w-full text-left p-2 mb-2 rounded-md bg-black/10 hover:bg-black/20 transition-colors"

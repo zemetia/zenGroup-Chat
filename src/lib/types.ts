@@ -4,6 +4,12 @@ export type Persona = {
   additionalInstructions?: string;
 };
 
+export type Memory = {
+    id: string;
+    content: string;
+    timestamp: number;
+};
+
 export type Participant = {
   id: string;
   name: string;
@@ -13,23 +19,26 @@ export type Participant = {
   description?: string;
   isTyping?: boolean;
   isCustom?: boolean;
+  memoryBank?: Memory[];
 };
 
-export type AIAssistant = Omit<Participant, 'isAI'> & {
+export type AIAssistant = Omit<Participant, 'isAI' | 'memoryBank'> & {
   isAI: true;
   description: string;
   persona: Persona;
   isCustom?: boolean;
+  memoryBank: Memory[];
 };
 
-export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping' | 'isCustom'> & {
+export type User = Omit<Participant, 'isAI' | 'persona' | 'description' | 'isTyping' | 'isCustom' | 'memoryBank'> & {
   isAI: false;
 };
 
 export type Message = {
-  id: string;
-  author: Participant;
-  text: string;
-  timestamp: number;
-  replyToId?: string;
-};
+    id: string;
+    text: string;
+    timestamp: number;
+} & (
+    | { type: 'user' | 'ai'; author: Participant; replyToId?: string; }
+    | { type: 'system'; author?: never; replyToId?: never; }
+);

@@ -15,30 +15,17 @@ import {z} from 'genkit';
 
 const ResponderSelectorInputSchema = z.object({
   message: z.string().describe('The content of the latest message to be analyzed.'),
-  chatHistory: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        text: z.string(),
-      })
-    )
-    .describe('The recent chat history, with IDs for each message.'),
-  participants: z
-    .array(
-      z.object({
-        id: z.string(),
-        name: z.string(),
-        persona: z
-          .string()
-          .describe(
-            'The configured persona of the AI assistant (e.g., tone, expertise).'
-          ),
-      })
-    )
-    .describe(
-      'A list of available AI assistants that could potentially respond.'
-    ),
+  recentHistory: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    text: z.string(),
+  })).describe('The last 4 turns of chat history for immediate context.'),
+  participants: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    persona: z.string().describe('The configured persona of the AI assistant (e.g., tone, expertise).'),
+    memories: z.array(z.string()).describe('A list of relevant memories for this AI, retrieved based on the current query.'),
+  })).describe('A list of available AI assistants that could potentially respond, along with their relevant memories.'),
 });
 export type ResponderSelectorInput = z.infer<typeof ResponderSelectorInputSchema>;
 
@@ -68,17 +55,25 @@ const prompt = ai.definePrompt({
   input: {schema: ResponderSelectorInputSchema},
   output: {schema: ResponderSelectorOutputSchema},
   prompt: `You are a master chat moderator for a group chat with humans and multiple AI assistants.
-Your task is to analyze the latest message in the context of the recent chat history and decide which AI assistant(s), if any, should reply.
+Your task is to analyze the latest message in the context of recent chat history and each AI's memories to decide which AI assistant(s), if any, should reply.
 
-Here are the available AI assistants who can reply:
+Here are the available AI assistants who can reply, along with their persona and relevant memories for this turn:
 {{#each participants}}
 - ID: {{id}}
   Name: {{name}}
   Persona: {{persona}}
+  Relevant Memories:
+  {{#if memories}}
+    {{#each memories}}
+    - {{{this}}}
+    {{/each}}
+  {{else}}
+    (No relevant memories for this topic)
+  {{/if}}
 {{/each}}
 
-Here is the recent chat history (from oldest to newest):
-{{#each chatHistory}}
+Here is the recent chat history (the last 4 turns, from oldest to newest):
+{{#each recentHistory}}
 - Message ID: {{id}}
   From: {{name}}
   Content: "{{text}}"
@@ -88,28 +83,14 @@ And here is the latest message you must evaluate:
 "{{message}}"
 
 Your decision framework:
-1.  **Engage in Conversation:** Your primary goal is to create a lively and natural group chat. If the latest message invites a response, one or more AIs should participate. Always prioritize responding to direct questions from the human user.
-2.  **Select Responders:** You can select one OR MORE AIs to respond. Choose AIs whose persona and expertise are relevant to the conversation. It's good to have multiple AIs share their perspectives to create a discussion.
-3.  **Generate Diverse Responses:** For each chosen AI, generate a thoughtful and relevant response that perfectly matches its name and persona. The replies should be concise, as if in a real-time chat.
-4.  **Avoid Dogpiling:** While multiple AIs can respond, avoid having every AI respond to every message. Select them thoughtfully. If the last message was from an AI, another AI should only reply if it has something new and interesting to add.
-5.  **Identify Reply Context:** If a response is a direct reply to a specific message in the history, you MUST provide the ID of that message in the \`replyToId\` field for that response. Otherwise, omit the field.
+1.  **Use Memories:** The AI should use its "Relevant Memories" to inform its response, making it sound more intelligent and context-aware. The reply should not just repeat the memory but use it as a basis for its statement.
+2.  **Engage in Conversation:** Your primary goal is to create a lively and natural group chat. If the latest message invites a response, one or more AIs should participate. Always prioritize responding to direct questions from the human user.
+3.  **Select Responders:** You can select one OR MORE AIs to respond. Choose AIs whose persona and memories are relevant to the conversation.
+4.  **Generate Diverse Responses:** For each chosen AI, generate a thoughtful and relevant response that perfectly matches its name, persona, and memories. The replies should be concise, as if in a real-time chat.
+5.  **Avoid Dogpiling:** While multiple AIs can respond, avoid having every AI respond to every message. Select them thoughtfully. If the last message was from an AI, another AI should only reply if it has something new and interesting to add.
+6.  **Identify Reply Context:** If a response is a direct reply to a specific message in the history, you MUST provide the ID of that message in the \`replyToId\` field for that response. Otherwise, omit the field.
 
 Your output MUST be in the specified JSON format, containing an array of responses.
-
-Example with multiple responders:
-{
-  "responses": [
-    {
-      "responderId": "ai-1",
-      "replyToId": "msg-12345",
-      "reply": "That's a great point, Marketing Mike here! I think..."
-    },
-    {
-      "responderId": "ai-2",
-      "reply": "From a technical standpoint, I see it differently..."
-    }
-  ]
-}
 
 If no reply is necessary, return an empty array:
 {
