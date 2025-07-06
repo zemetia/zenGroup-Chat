@@ -11,6 +11,7 @@
 
 import { genkit } from 'genkit';
 import { googleAI } from '@genkit-ai/googleai';
+import { botAis } from '@/ai/genkit';
 import { z } from 'zod';
 
 const ControlAiInputSchema = z.object({

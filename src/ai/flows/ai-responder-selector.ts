@@ -10,7 +10,7 @@
  * - ResponderSelectorOutput - The return type for the selectRespondingAI function.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAi} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ResponderSelectorInputSchema = z.object({
@@ -43,14 +43,14 @@ export type ResponderSelectorOutput = z.infer<
 export async function selectRespondingAI(
   input: ResponderSelectorInput
 ): Promise<ResponderSelectorOutput> {
-  // If there are no potential responders, don't even call the AI.
+  // If there are no potential responders, don't even call the systemAi.
   if (input.participants.length === 0) {
     return {responses: []};
   }
   return responderSelectorFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = systemAi.definePrompt({
   name: 'responderSelectorPrompt',
   input: {schema: ResponderSelectorInputSchema},
   output: {schema: ResponderSelectorOutputSchema},
@@ -99,7 +99,7 @@ If no reply is necessary, return an empty array:
 `,
 });
 
-const responderSelectorFlow = ai.defineFlow(
+const responderSelectorFlow = systemAi.defineFlow(
   {
     name: 'responderSelectorFlow',
     inputSchema: ResponderSelectorInputSchema,

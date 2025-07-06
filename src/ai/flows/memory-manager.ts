@@ -8,7 +8,7 @@
  * - getRelevantMemories - Retrieves memories relevant to a user's query.
  */
 
-import { ai } from '@/ai/genkit';
+import { systemAi } from '@/ai/genkit';
 import { z } from 'zod';
 
 // Summarize and Store
@@ -27,7 +27,7 @@ export async function summarizeAndStore(input: SummarizeInput): Promise<Summariz
   return summarizeAndStoreFlow(input);
 }
 
-const summarizePrompt = ai.definePrompt({
+const summarizePrompt = systemAi.definePrompt({
   name: 'summarizeMemoryPrompt',
   input: { schema: SummarizeInputSchema },
   output: { schema: SummarizeOutputSchema },
@@ -45,7 +45,7 @@ Conversation Transcript:
 `,
 });
 
-const summarizeAndStoreFlow = ai.defineFlow(
+const summarizeAndStoreFlow = systemAi.defineFlow(
   {
     name: 'summarizeAndStoreFlow',
     inputSchema: SummarizeInputSchema,
@@ -73,7 +73,7 @@ export async function pruneMemories(input: PruneInput): Promise<PruneOutput> {
   return pruneMemoriesFlow(input);
 }
 
-const prunePrompt = ai.definePrompt({
+const prunePrompt = systemAi.definePrompt({
   name: 'pruneMemoriesPrompt',
   input: { schema: PruneInputSchema },
   output: { schema: PruneOutputSchema },
@@ -87,7 +87,7 @@ Memories to prune:
 `,
 });
 
-const pruneMemoriesFlow = ai.defineFlow(
+const pruneMemoriesFlow = systemAi.defineFlow(
   {
     name: 'pruneMemoriesFlow',
     inputSchema: PruneInputSchema,
@@ -121,7 +121,7 @@ export async function getRelevantMemories(input: RelevantMemoriesInput): Promise
 }
 
 
-const relevantMemoriesPrompt = ai.definePrompt({
+const relevantMemoriesPrompt = systemAi.definePrompt({
   name: 'getRelevantMemoriesPrompt',
   input: { schema: RelevantMemoriesInputSchema },
   output: { schema: RelevantMemoriesOutputSchema },
@@ -137,7 +137,7 @@ Memory Bank:
 `,
 });
 
-const getRelevantMemoriesFlow = ai.defineFlow(
+const getRelevantMemoriesFlow = systemAi.defineFlow(
   {
     name: 'getRelevantMemoriesFlow',
     inputSchema: RelevantMemoriesInputSchema,

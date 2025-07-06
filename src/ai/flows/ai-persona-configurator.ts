@@ -9,7 +9,7 @@
  * - ConfigureAIPersonaOutput - Output type confirming the AI persona configuration.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAi} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ConfigureAIPersonaInputSchema = z.object({
@@ -37,7 +37,7 @@ export async function configureAIPersona(input: ConfigureAIPersonaInput): Promis
   return configureAIPersonaFlow(input);
 }
 
-const configureAIPersonaPrompt = ai.definePrompt({
+const configureAIPersonaPrompt = systemAi.definePrompt({
   name: 'configureAIPersonaPrompt',
   input: {schema: ConfigureAIPersonaInputSchema},
   output: {schema: ConfigureAIPersonaOutputSchema},
@@ -52,7 +52,7 @@ const configureAIPersonaPrompt = ai.definePrompt({
   Confirmation Message: `,
 });
 
-const configureAIPersonaFlow = ai.defineFlow(
+const configureAIPersonaFlow = systemAi.defineFlow(
   {
     name: 'configureAIPersonaFlow',
     inputSchema: ConfigureAIPersonaInputSchema,

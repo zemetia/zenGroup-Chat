@@ -8,7 +8,7 @@
  * - ContextAwareResponseOutput - The return type for the getContextAwareResponse function.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAi} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ContextAwareResponseInputSchema = z.object({
@@ -31,7 +31,7 @@ export async function getContextAwareResponse(
   return contextAwareResponseFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = systemAi.definePrompt({
   name: 'contextAwareResponsePrompt',
   input: {schema: ContextAwareResponseInputSchema},
   output: {schema: ContextAwareResponseOutputSchema},
@@ -48,7 +48,7 @@ const prompt = ai.definePrompt({
   Based on the chat history and the user's message, generate a context-aware response. Keep your response concise. Only provide a longer explanation if necessary or if your persona requires it.`,
 });
 
-const contextAwareResponseFlow = ai.defineFlow(
+const contextAwareResponseFlow = systemAi.defineFlow(
   {
     name: 'contextAwareResponseFlow',
     inputSchema: ContextAwareResponseInputSchema,

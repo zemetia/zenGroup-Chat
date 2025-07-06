@@ -8,7 +8,7 @@
  * - OptimizeAIPromptOutput - The return type for the optimizeAIPrompt function.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAi} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const OptimizeAIPromptInputSchema = z.object({
@@ -25,7 +25,7 @@ export async function optimizeAIPrompt(input: OptimizeAIPromptInput): Promise<Op
   return optimizeAIPromptFlow(input);
 }
 
-const prompt = ai.definePrompt({
+const prompt = systemAi.definePrompt({
   name: 'optimizeAIPrompt',
   input: {schema: OptimizeAIPromptInputSchema},
   output: {schema: OptimizeAIPromptOutputSchema},
@@ -37,7 +37,7 @@ The user's idea is:
 Based on this idea, generate an optimized prompt for the "additional instructions" field of the AI's persona configuration. The prompt should be concise but comprehensive enough to establish a distinct personality. Do not add any preamble, just the optimized prompt.`,
 });
 
-const optimizeAIPromptFlow = ai.defineFlow(
+const optimizeAIPromptFlow = systemAi.defineFlow(
   {
     name: 'optimizeAIPromptFlow',
     inputSchema: OptimizeAIPromptInputSchema,
