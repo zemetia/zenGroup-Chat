@@ -1,7 +1,7 @@
 "use client";
 
 import { getDecisiveAIResponse } from '@/ai/flows/ai-flow-controller';
-import { pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
+import { getRelevantMemories, pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import { useToast } from '@/hooks/use-toast';
 import { HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona, Memory, ApiKey } from '@/lib/types';
@@ -204,12 +204,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
                         setParticipantTyping(ai.id, true);
                         try {
+                            const { relevantMemories } = await getRelevantMemories({
+                                query: lastMessage.text,
+                                memoryBank: ai.memoryBank.map(m => m.content),
+                            });
+
                             const response = await getDecisiveAIResponse({
                                 message: lastMessage.text,
                                 chatHistory: chatHistoryText,
                                 aiName: ai.name,
                                 aiPersona: `Tone: ${ai.persona.tone}, Expertise: ${ai.persona.expertise}. ${ai.persona.additionalInstructions || ''}`,
                                 apiKey: apiKey,
+                                memories: relevantMemories,
                             });
 
                             if (response.shouldReply && response.reply) {

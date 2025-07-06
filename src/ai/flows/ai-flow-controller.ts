@@ -24,6 +24,10 @@ const ControlAiInputSchema = z.object({
     .describe(
       'The configured persona of the AI assistant (e.g., tone, expertise).'
     ),
+  memories: z
+    .array(z.string())
+    .optional()
+    .describe('A list of relevant memories for this AI, retrieved based on the current query.'),
 });
 export type ControlAiInput = z.infer<typeof ControlAiInputSchema>;
 
@@ -42,7 +46,16 @@ export type GetDecisiveAIResponseRequest = ControlAiInput & { apiKey: string };
 
 const promptTemplate = `You are an AI assistant named {{aiName}} with the following persona: {{aiPersona}}.
 
-You are participating in a group chat. Analyze the following message and the recent chat history to determine if you should reply.
+You are participating in a group chat. Analyze the following message, chat history, and your relevant memories to determine if you should reply.
+
+Here are your relevant memories for this topic:
+{{#if memories}}
+  {{#each memories}}
+  - {{{this}}}
+  {{/each}}
+{{else}}
+  (No relevant memories for this topic)
+{{/if}}
 
 Last Message: "{{message}}"
 
@@ -50,8 +63,9 @@ Recent Chat History:
 {{chatHistory}}
 
 Your decision framework:
+- Use your memories to inform your response. If a memory is relevant, incorporate it into your reply to show you remember past conversations.
 - Is the message a direct question to you or mentions you by name ({{aiName}})? If yes, you should probably reply.
-- Is the message highly relevant to your specific expertise where you can provide unique value? If yes, consider replying.
+- Is the message highly relevant to your specific expertise or memories where you can provide unique value? If yes, consider replying.
 - Is it a response from another AI? You may reply if you have a significant counter-argument, a supporting point, or a clarifying question. Do not simply agree. Add new information or a new perspective.
 - Avoid replying to simple acknowledgments ("ok", "thanks") or messages that don't invite a response. Your goal is to contribute meaningfully, not to be noisy.
 
@@ -62,7 +76,7 @@ Your output MUST be in JSON format.
 Example:
 {
   "shouldReply": true,
-  "reply": "I have a different perspective on that..."
+  "reply": "That reminds me of when we discussed..."
 }
 
 OR
