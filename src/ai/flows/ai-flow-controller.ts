@@ -122,9 +122,14 @@ export async function getDecisiveAIResponse(
       prompt: promptTemplate,
     });
 
-    const { output } = await prompt(controlInput);
+    const result = await prompt(controlInput);
+    const output = result.output;
+    
     if (!output) {
-      console.error(`AI model failed to return a valid response object for ${controlInput.aiName}. The prompt output was null or undefined.`);
+      console.error(
+        `[${controlInput.aiName}] AI model failed to return a valid response object. The prompt output was null or undefined. Raw text response:`,
+        result.text
+      );
       return { shouldReply: false };
     }
     
