@@ -240,7 +240,13 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         });
         return prev;
       }
-      return [...prev, { ...assistant, memoryBank: assistant.memoryBank || [] }];
+      // Create a new copy of the assistant to avoid potential reference issues with constants
+      const newParticipant = {
+        ...assistant,
+        persona: { ...assistant.persona }, // Deep copy persona
+        memoryBank: assistant.memoryBank ? [...assistant.memoryBank] : [], // Ensure memoryBank is a new array
+      };
+      return [...prev, newParticipant];
     });
   }, [toast]);
   
