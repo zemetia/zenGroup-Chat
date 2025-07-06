@@ -3,7 +3,7 @@
 import { getDecisiveAIResponse } from '@/ai/flows/ai-flow-controller';
 import { pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import { useToast } from '@/hooks/use-toast';
-import { AI_LIMIT, HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
+import { HUMAN_USER, MEMORY_PRUNE_COUNT, MEMORY_PRUNE_THRESHOLD } from '@/lib/constants';
 import type { AIAssistant, Message, Participant, Persona, Memory, ApiKey } from '@/lib/types';
 import React, { createContext, useCallback, useContext, useEffect, useState, type ReactNode, useRef } from 'react';
 import { 
@@ -51,6 +51,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const participantsRef = useRef(participants);
   participantsRef.current = participants;
 
+  // This ref is crucial to prevent the AI response logic from running before API keys are loaded.
+  const isReadyForAIResponse = useRef(false);
+
   // Load state from local storage and remote databases on initial mount
   useEffect(() => {
     // Load local chat state
@@ -91,6 +94,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                 variant: "destructive",
                 duration: 5000,
               });
+            } else {
+              // Now that we have keys, we are ready to process AI responses.
+              isReadyForAIResponse.current = true;
             }
         } catch (error) {
             console.error("Failed to load API keys", error);
@@ -145,7 +151,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Main AI processing logic - runs when messages or API keys change.
+  // Main AI processing logic - runs when messages change.
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return;
@@ -176,9 +182,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
     // Task 2: Get AI responses after a user speaks.
     if (lastMessage.type === 'user' && lastMessage.id !== lastProcessedBotResponseId.current) {
-        // This is the critical check: only proceed if API keys are loaded.
-        // If they aren't, this effect will re-run when they are, and this block will execute then.
-        if (apiKeys.length > 0 && aiParticipants.length > 0) {
+        // Critical check: only proceed if keys are loaded and there are AI participants.
+        if (isReadyForAIResponse.current && aiParticipants.length > 0) {
             lastProcessedBotResponseId.current = lastMessage.id;
 
             const chatHistoryText = messages
@@ -219,6 +224,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                             }
                         } catch (error) {
                             console.error(`Error getting response from ${ai.name}:`, error);
+                            toast({ title: `Error from ${ai.name}`, description: 'Could not generate a response.', variant: 'destructive' });
                         } finally {
                             setParticipantTyping(ai.id, false);
                         }
@@ -227,7 +233,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             }
         }
     }
-  }, [messages, apiKeys, updateMemoryAndPrune]);
+  }, [messages, apiKeys, updateMemoryAndPrune, toast]);
 
   const setParticipantTyping = (participantId: string, isTyping: boolean) => {
     setParticipants(prev => prev.map(p => p.id === participantId ? { ...p, isTyping } : p));
@@ -243,10 +249,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       return;
     }
     const aiCount = participants.filter(p => p.isAI).length;
-    if (aiCount >= AI_LIMIT) {
+    if (aiCount >= apiKeys.length) {
       toast({
         title: "AI Limit Reached",
-        description: `You can only add up to ${AI_LIMIT} AI assistants to the chat.`,
+        description: `You can only add as many AI assistants as you have API keys. You have ${apiKeys.length} key(s) available.`,
         variant: "destructive",
       });
       return;
