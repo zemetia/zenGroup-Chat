@@ -46,7 +46,7 @@ export function ChatMessages() {
 
       const handleScroll = () => {
         const { scrollTop, scrollHeight, clientHeight } = viewport;
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 1;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < 5;
         atBottomRef.current = isAtBottom;
         setShowScrollDownButton(!isAtBottom);
       };
@@ -75,7 +75,7 @@ export function ChatMessages() {
   return (
     <div className="flex-1 relative">
       <ScrollArea className="absolute inset-0" ref={scrollAreaRef}>
-        <div className="p-4 md:p-6 space-y-5 max-w-4xl mx-auto">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl mx-auto">
           {messages.map((message) => {
             if (message.type === 'system') {
                 return (
@@ -96,21 +96,21 @@ export function ChatMessages() {
                 key={message.id}
                 id={message.id}
                 className={cn(
-                  "flex items-start gap-3 animate-fade-in",
-                  isUser ? "justify-end" : "justify-start"
+                  "flex items-start gap-4 animate-fade-in",
+                  isUser && "justify-end"
                 )}
               >
                 {!isUser && (
-                  <Avatar className="w-8 h-8 border shrink-0">
+                  <Avatar className="w-9 h-9 border shrink-0">
                     <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="robot face" />
                     <AvatarFallback><Bot /></AvatarFallback>
                   </Avatar>
                 )}
-                <div className={cn("flex flex-col gap-1 max-w-md md:max-w-lg", isUser && "items-end")}>
-                  <p className={cn("text-xs text-muted-foreground px-1", isUser ? "text-right" : "text-left")}>{message.author.name}</p>
+                <div className={cn("flex flex-col gap-1.5 max-w-xl", isUser && "items-end")}>
+                  <p className={cn("text-xs text-muted-foreground", isUser ? "text-right" : "text-left")}>{isUser ? 'You' : message.author.name}</p>
                   <div
                     className={cn(
-                      "p-3 rounded-xl",
+                      "p-3 rounded-lg",
                       isUser
                         ? "bg-primary text-primary-foreground rounded-br-none"
                         : "bg-card text-card-foreground rounded-bl-none border"
@@ -121,8 +121,8 @@ export function ChatMessages() {
                       <button
                         onClick={() => handleReplyClick(repliedToMessage.id)}
                         className={cn(
-                          "w-full text-left p-2 mb-2 rounded-md transition-colors",
-                          isUser ? "bg-black/10 hover:bg-black/20" : "bg-muted hover:bg-secondary"
+                          "w-full text-left p-2 mb-2 rounded-md transition-colors border-l-4",
+                          isUser ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 border-primary-foreground/50" : "bg-muted hover:bg-secondary border-border"
                         )}
                       >
                         <div className="flex items-start gap-2">
@@ -139,12 +139,12 @@ export function ChatMessages() {
                       </button>
                     )}
 
-                    <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
                   </div>
                 </div>
 
                 {isUser && (
-                  <Avatar className="w-8 h-8 shrink-0">
+                  <Avatar className="w-9 h-9 shrink-0">
                     <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="person avatar" />
                     <AvatarFallback><User /></AvatarFallback>
                   </Avatar>
@@ -154,15 +154,17 @@ export function ChatMessages() {
           })}
            {typingAIs.map(ai => (
               <div key={`typing-${ai.id}`} className="flex items-start gap-4 justify-start animate-fade-in">
-                <Avatar className="w-8 h-8 shrink-0 border">
+                <Avatar className="w-9 h-9 shrink-0 border">
                     <AvatarImage src={ai.avatar} alt={ai.name} />
                     <AvatarFallback><Bot /></AvatarFallback>
                 </Avatar>
-                <div className="max-w-md p-3 rounded-lg bg-card text-card-foreground border flex items-center space-x-1">
-                   <span className="text-sm font-bold">{ai.name} is typing</span>
-                   <span className="animate-pulse-fast">.</span>
-                   <span className="animate-pulse-medium">.</span>
-                   <span className="animate-pulse-slow">.</span>
+                <div className="flex flex-col gap-1.5">
+                    <p className="text-xs text-muted-foreground">{ai.name}</p>
+                    <div className="max-w-md p-3 rounded-lg bg-card text-card-foreground border flex items-center space-x-1.5">
+                       <span className="h-2 w-2 bg-muted-foreground rounded-full animate-pulse-fast"></span>
+                       <span className="h-2 w-2 bg-muted-foreground rounded-full animate-pulse-medium"></span>
+                       <span className="h-2 w-2 bg-muted-foreground rounded-full animate-pulse-slow"></span>
+                    </div>
                 </div>
               </div>
           ))}

@@ -55,16 +55,6 @@ export default {
           '4': 'hsl(var(--chart-4))',
           '5': 'hsl(var(--chart-5))',
         },
-        sidebar: {
-          DEFAULT: 'hsl(var(--sidebar-background))',
-          foreground: 'hsl(var(--sidebar-foreground))',
-          primary: 'hsl(var(--sidebar-primary))',
-          'primary-foreground': 'hsl(var(--sidebar-primary-foreground))',
-          accent: 'hsl(var(--sidebar-accent))',
-          'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
-          border: 'hsl(var(--sidebar-border))',
-          ring: 'hsl(var(--sidebar-ring))',
-        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -97,8 +87,8 @@ export default {
           '50%': { backgroundColor: 'hsl(var(--primary) / 0.2)' },
         },
         'fade-in': {
-          '0%': { opacity: '0' },
-          '100%': { opacity: '1' },
+          '0%': { opacity: '0' , transform: 'translateY(10px)'},
+          '100%': { opacity: '1', transform: 'translateY(0)' },
         },
       },
       animation: {
@@ -108,7 +98,7 @@ export default {
         'pulse-medium': 'pulse-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite 0.2s',
         'pulse-slow': 'pulse-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite 0.4s',
         'highlight': 'highlight 1.5s ease-out',
-        'fade-in': 'fade-in 0.3s ease-out',
+        'fade-in': 'fade-in 0.3s ease-out forwards',
       },
     },
   },
