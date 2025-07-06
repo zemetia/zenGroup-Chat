@@ -48,7 +48,7 @@ Consider the following factors:
 - Does the message tag you directly?
 - Is the message important or urgent?
 
-Based on your analysis, decide whether you should reply. If you should reply, generate a thoughtful and relevant response. Always keep your response short and to the point. Don't write a wall of text, no matter what!
+Based on your analysis, decide whether you should reply. If you should reply, generate a thoughtful and relevant response. Keep your response concise and to the point. Only provide a longer explanation if it is truly necessary to be helpful or if your persona dictates it. Avoid unnecessarily long messages.
 
 Output your decision as a boolean value for shouldReply. If shouldReply is true, also output your reply.
 

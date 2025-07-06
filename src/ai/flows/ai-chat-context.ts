@@ -45,7 +45,7 @@ const prompt = ai.definePrompt({
 
   {{userMessage}}
 
-  Based on the chat history and the user's message, generate a context-aware response.`,
+  Based on the chat history and the user's message, generate a context-aware response. Keep your response concise. Only provide a longer explanation if necessary or if your persona requires it.`,
 });
 
 const contextAwareResponseFlow = ai.defineFlow(
