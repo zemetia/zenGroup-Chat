@@ -80,7 +80,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const chatHistory = messages.slice(-10).map(m => `${m.author.name}: ${m.text}`).join('\n');
+    const chatHistory = messages.slice(-10).map(m => ({ id: m.id, name: m.author.name, text: m.text }));
     
     const potentialResponders = aiParticipants.filter(ai => ai.id !== lastMessage.author.id);
 
@@ -108,6 +108,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
                             author: respondingAI,
                             text: result.reply!,
                             timestamp: Date.now(),
+                            replyToId: result.replyToId,
                         };
                         setMessages(prev => [...prev, aiMessage]);
                         setParticipantTyping(respondingAI.id, false);

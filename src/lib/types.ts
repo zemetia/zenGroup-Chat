@@ -31,4 +31,5 @@ export type Message = {
   author: Participant;
   text: string;
   timestamp: number;
+  replyToId?: string;
 };

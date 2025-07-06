@@ -6,7 +6,7 @@ import { useChat } from "@/lib/hooks/use-chat";
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "./ui/scroll-area";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Bot, User, ArrowDown } from "lucide-react";
+import { Bot, User, ArrowDown, CornerUpLeft } from "lucide-react";
 import { Button } from "./ui/button";
 
 export function ChatMessages() {
@@ -23,6 +23,17 @@ export function ChatMessages() {
         top: target.scrollHeight,
         behavior,
       });
+    }
+  };
+
+  const handleReplyClick = (messageId: string) => {
+    const element = viewportRef.current?.querySelector(`#${CSS.escape(messageId)}`);
+    if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('animate-highlight');
+        setTimeout(() => {
+            element.classList.remove('animate-highlight');
+        }, 1500);
     }
   };
 
@@ -66,39 +77,66 @@ export function ChatMessages() {
     <div className="flex-1 relative">
       <ScrollArea className="absolute inset-0" ref={scrollAreaRef}>
         <div className="p-4 md:p-6 space-y-6">
-          {messages.map((message) => (
-            <div
-              key={message.id}
-              className={cn(
-                "flex items-start gap-4",
-                message.author.isAI ? "justify-start" : "justify-end"
-              )}
-            >
-              {message.author.isAI && (
-                 <Avatar className="w-8 h-8 border-2 border-primary/50">
-                  <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="robot face" />
-                  <AvatarFallback><Bot /></AvatarFallback>
-                </Avatar>
-              )}
+          {messages.map((message) => {
+            const repliedToMessage = message.replyToId
+              ? messages.find((m) => m.id === message.replyToId)
+              : null;
+            
+            return (
               <div
+                key={message.id}
+                id={message.id}
                 className={cn(
-                  "max-w-md p-3 rounded-lg shadow-sm",
-                  message.author.isAI
-                    ? "bg-secondary text-secondary-foreground"
-                    : "bg-primary text-primary-foreground"
+                  "flex items-start gap-4 rounded-md transition-colors",
+                  message.author.isAI ? "justify-start" : "justify-end"
                 )}
               >
-                <p className="font-bold text-sm mb-1">{message.author.name}</p>
-                <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                {message.author.isAI && (
+                  <Avatar className="w-8 h-8 border-2 border-primary/50">
+                    <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="robot face" />
+                    <AvatarFallback><Bot /></AvatarFallback>
+                  </Avatar>
+                )}
+                <div
+                  className={cn(
+                    "max-w-md p-3 rounded-lg shadow-sm",
+                    message.author.isAI
+                      ? "bg-secondary text-secondary-foreground"
+                      : "bg-primary text-primary-foreground"
+                  )}
+                >
+                  <p className="font-bold text-sm mb-1">{message.author.name}</p>
+                  
+                  {repliedToMessage && (
+                    <button
+                      onClick={() => handleReplyClick(repliedToMessage.id)}
+                      className="w-full text-left p-2 mb-2 rounded-md bg-black/10 hover:bg-black/20 transition-colors"
+                    >
+                      <div className="flex items-start gap-2">
+                        <CornerUpLeft className="w-4 h-4 mt-0.5 shrink-0" />
+                        <div className="flex-1">
+                          <p className="font-semibold text-xs opacity-80">
+                            {repliedToMessage.author.name}
+                          </p>
+                          <p className="text-xs opacity-70 line-clamp-2">
+                            {repliedToMessage.text}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  )}
+
+                  <p className="text-sm whitespace-pre-wrap">{message.text}</p>
+                </div>
+                {!message.author.isAI && (
+                  <Avatar className="w-8 h-8">
+                    <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="person avatar" />
+                    <AvatarFallback><User /></AvatarFallback>
+                  </Avatar>
+                )}
               </div>
-               {!message.author.isAI && (
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src={message.author.avatar} alt={message.author.name} data-ai-hint="person avatar" />
-                  <AvatarFallback><User /></AvatarFallback>
-                </Avatar>
-              )}
-            </div>
-          ))}
+            )
+          })}
            {typingAIs.map(ai => (
               <div key={`typing-${ai.id}`} className="flex items-start gap-4 justify-start">
                 <Avatar className="w-8 h-8">
