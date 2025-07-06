@@ -95,7 +95,11 @@ export default {
         'highlight': {
           '0%, 100%': { backgroundColor: 'transparent' },
           '50%': { backgroundColor: 'hsl(var(--primary) / 0.2)' },
-        }
+        },
+        'fade-in': {
+          '0%': { opacity: '0' },
+          '100%': { opacity: '1' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.2s ease-out',
@@ -104,6 +108,7 @@ export default {
         'pulse-medium': 'pulse-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite 0.2s',
         'pulse-slow': 'pulse-dot 1.2s cubic-bezier(0.4, 0, 0.6, 1) infinite 0.4s',
         'highlight': 'highlight 1.5s ease-out',
+        'fade-in': 'fade-in 0.3s ease-out',
       },
     },
   },

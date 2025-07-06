@@ -39,9 +39,9 @@ export function ChatInput() {
   };
 
   return (
-    <div className="p-4 border-t bg-background shrink-0">
+    <div className="p-4 border-t bg-card shrink-0">
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-4 max-w-4xl mx-auto">
+        <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-3 max-w-4xl mx-auto">
           <FormField
             control={form.control}
             name="message"
@@ -49,8 +49,8 @@ export function ChatInput() {
               <FormItem className="flex-1">
                 <FormControl>
                   <Textarea
-                    placeholder="Type your message here..."
-                    className="resize-none"
+                    placeholder="Type a message..."
+                    className="resize-none bg-background focus-visible:ring-1 ring-inset"
                     rows={1}
                     {...field}
                     onKeyDown={handleKeyDown}
