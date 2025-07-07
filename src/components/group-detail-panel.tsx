@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState } from 'react';
@@ -25,7 +24,7 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
   ];
 
   return (
-    <div className="flex flex-1 flex-col overflow-hidden">
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Navigation Panel: Top on mobile, Left on desktop */}
         <div className="md:w-64 bg-card md:border-r flex flex-col shrink-0">
             {/* Desktop Title - Hidden on mobile */}
