@@ -27,7 +27,7 @@ export function ChatInput() {
 
   const onSubmit = async (data: ChatFormValues) => {
     if (!activeGroup) return;
-    await sendMessage(data.message);
+    sendMessage(data.message);
     form.reset();
   };
   
@@ -40,7 +40,7 @@ export function ChatInput() {
 
   return (
     <div className="p-4 border-t bg-card shrink-0">
-      {replyingTo && replyingTo.author && (
+      {replyingTo && replyingTo.type !== 'system' && replyingTo.author && (
           <div className="max-w-4xl mx-auto mb-2 p-2 bg-accent rounded-md text-sm">
               <div className="flex justify-between items-center">
                   <div className="flex-1 overflow-hidden">
