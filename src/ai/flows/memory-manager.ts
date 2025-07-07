@@ -8,10 +8,12 @@
  * - getRelevantMemories - Retrieves memories relevant to a user's query.
  */
 
-import { ai } from '@/ai/genkit';
 import { z } from 'zod';
+import { getBotAiInstance } from '../bot-ai-provider';
+import Handlebars from 'handlebars';
 
-// Summarize and Store
+// == Summarize and Store ==
+
 const SummarizeInputSchema = z.object({
   conversationHistory: z.string().describe('The transcript of the recent conversation.'),
   botPersona: z.string().describe("The persona of the bot for which to generate memories."),
@@ -23,15 +25,7 @@ const SummarizeOutputSchema = z.object({
 });
 export type SummarizeOutput = z.infer<typeof SummarizeOutputSchema>;
 
-export async function summarizeAndStore(input: SummarizeInput): Promise<SummarizeOutput> {
-  return summarizeAndStoreFlow(input);
-}
-
-const summarizePrompt = ai.definePrompt({
-  name: 'summarizeMemoryPrompt',
-  input: { schema: SummarizeInputSchema },
-  output: { schema: SummarizeOutputSchema },
-  prompt: `You are a memory management module for a conversational AI with the following persona: {{botPersona}}.
+const SUMMARIZE_TEMPLATE = `You are a memory management module for a conversational AI with the following persona: {{botPersona}}.
 Your task is to analyze the following conversation transcript and extract the most important, non-trivial facts and key points.
 Summarize these points into a single, dense, 1-2 sentence memory item. The summary must be under 100 words.
 
@@ -42,23 +36,25 @@ Conversation Transcript:
 ---
 {{conversationHistory}}
 ---
-`,
-});
+`;
+const summarizeTemplate = Handlebars.compile(SUMMARIZE_TEMPLATE);
 
-const summarizeAndStoreFlow = ai.defineFlow(
-  {
-    name: 'summarizeAndStoreFlow',
-    inputSchema: SummarizeInputSchema,
-    outputSchema: SummarizeOutputSchema,
-  },
-  async (input) => {
-    const { output } = await summarizePrompt(input);
-    return output!;
-  }
-);
+export async function summarizeAndStore(input: SummarizeInput): Promise<SummarizeOutput> {
+  const botAi = await getBotAiInstance();
+  const finalPrompt = summarizeTemplate(input);
+
+  const result = await botAi.generate({
+    prompt: finalPrompt,
+    model: 'googleai/gemini-2.0-flash',
+    output: { schema: SummarizeOutputSchema }
+  });
+
+  return result.output!;
+}
 
 
-// Prune Memories
+// == Prune Memories ==
+
 const PruneInputSchema = z.object({
   memoriesToPrune: z.array(z.string()).describe('A list of older memory items to be condensed.'),
 });
@@ -69,38 +65,32 @@ const PruneOutputSchema = z.object({
 });
 export type PruneOutput = z.infer<typeof PruneOutputSchema>;
 
-export async function pruneMemories(input: PruneInput): Promise<PruneOutput> {
-  return pruneMemoriesFlow(input);
-}
-
-const prunePrompt = ai.definePrompt({
-  name: 'pruneMemoriesPrompt',
-  input: { schema: PruneInputSchema },
-  output: { schema: PruneOutputSchema },
-  prompt: `You are a memory management module. Your task is to merge and prune the following list of older memories into a single, tighter, and more comprehensive summary.
+const PRUNE_TEMPLATE = `You are a memory management module. Your task is to merge and prune the following list of older memories into a single, tighter, and more comprehensive summary.
 The final summary must be under 100 words and capture the essence of all the provided points.
 
 Memories to prune:
 {{#each memoriesToPrune}}
 - {{{this}}}
 {{/each}}
-`,
-});
+`;
+const pruneTemplate = Handlebars.compile(PRUNE_TEMPLATE);
 
-const pruneMemoriesFlow = ai.defineFlow(
-  {
-    name: 'pruneMemoriesFlow',
-    inputSchema: PruneInputSchema,
-    outputSchema: PruneOutputSchema,
-  },
-  async (input) => {
-    const { output } = await prunePrompt(input);
-    return output!;
-  }
-);
+export async function pruneMemories(input: PruneInput): Promise<PruneOutput> {
+  const botAi = await getBotAiInstance();
+  const finalPrompt = pruneTemplate(input);
+
+  const result = await botAi.generate({
+    prompt: finalPrompt,
+    model: 'googleai/gemini-2.0-flash',
+    output: { schema: PruneOutputSchema }
+  });
+
+  return result.output!;
+}
 
 
-// Get Relevant Memories
+// == Get Relevant Memories ==
+
 const RelevantMemoriesInputSchema = z.object({
   query: z.string().describe("The user's current query or message."),
   memoryBank: z.array(z.string()).describe("The bot's entire memory bank."),
@@ -112,20 +102,7 @@ const RelevantMemoriesOutputSchema = z.object({
 });
 export type RelevantMemoriesOutput = z.infer<typeof RelevantMemoriesOutputSchema>;
 
-
-export async function getRelevantMemories(input: RelevantMemoriesInput): Promise<RelevantMemoriesOutput> {
-    if (input.memoryBank.length === 0) {
-        return { relevantMemories: [] };
-    }
-    return getRelevantMemoriesFlow(input);
-}
-
-
-const relevantMemoriesPrompt = ai.definePrompt({
-  name: 'getRelevantMemoriesPrompt',
-  input: { schema: RelevantMemoriesInputSchema },
-  output: { schema: RelevantMemoriesOutputSchema },
-  prompt: `You are a memory retrieval module. Your task is to select memory items from the memory bank that are most relevant to the user's current query.
+const RELEVANT_MEMORIES_TEMPLATE = `You are a memory retrieval module. Your task is to select memory items from the memory bank that are most relevant to the user's current query.
 Return only the memories that are directly related to the query's topics. Do not return all memories.
 
 User's Query: "{{query}}"
@@ -134,17 +111,22 @@ Memory Bank:
 {{#each memoryBank}}
 - {{{this}}}
 {{/each}}
-`,
-});
+`;
+const relevantMemoriesTemplate = Handlebars.compile(RELEVANT_MEMORIES_TEMPLATE);
 
-const getRelevantMemoriesFlow = ai.defineFlow(
-  {
-    name: 'getRelevantMemoriesFlow',
-    inputSchema: RelevantMemoriesInputSchema,
-    outputSchema: RelevantMemoriesOutputSchema,
-  },
-  async (input) => {
-    const { output } = await relevantMemoriesPrompt(input);
-    return output!;
-  }
-);
+export async function getRelevantMemories(input: RelevantMemoriesInput): Promise<RelevantMemoriesOutput> {
+    if (input.memoryBank.length === 0) {
+        return { relevantMemories: [] };
+    }
+    
+    const botAi = await getBotAiInstance();
+    const finalPrompt = relevantMemoriesTemplate(input);
+
+    const result = await botAi.generate({
+        prompt: finalPrompt,
+        model: 'googleai/gemini-2.0-flash',
+        output: { schema: RelevantMemoriesOutputSchema }
+    });
+
+    return result.output!;
+}

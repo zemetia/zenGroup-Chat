@@ -8,7 +8,7 @@
  * - OptimizeAIPromptOutput - The return type for the optimizeAIPrompt function.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAI as ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const OptimizeAIPromptInputSchema = z.object({

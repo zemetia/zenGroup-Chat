@@ -8,8 +8,9 @@
  * - ControlAiFlowOutput - The return type for the controlAiFlow function.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { z } from 'genkit';
+import { getBotAiInstance } from '../bot-ai-provider';
+import Handlebars from 'handlebars';
 
 const ControlAiFlowInputSchema = z.object({
   messageToConsider: z.object({
@@ -31,15 +32,8 @@ const ControlAiFlowOutputSchema = z.object({
 });
 export type ControlAiFlowOutput = z.infer<typeof ControlAiFlowOutputSchema>;
 
-export async function controlAiFlow(input: ControlAiFlowInput): Promise<ControlAiFlowOutput> {
-  return flow(input);
-}
 
-const prompt = ai.definePrompt({
-  name: 'controlAiPrompt',
-  input: {schema: ControlAiFlowInputSchema},
-  output: {schema: ControlAiFlowOutputSchema},
-  prompt: `You are an AI assistant in a group chat. Your name is {{aiParticipant.name}} and your persona is: "{{aiParticipant.persona}}".
+const PROMPT_TEMPLATE = `You are an AI assistant in a group chat. Your name is {{aiParticipant.name}} and your persona is: "{{aiParticipant.persona}}".
 
 You must make a STRICT decision about whether to reply to the latest message. Do not reply to be polite or to acknowledge something. ONLY reply if the message meets one of these criteria:
 1.  The message directly mentions you by your name, "{{aiParticipant.name}}".
@@ -69,25 +63,33 @@ Based on your strict decision framework, your persona, your memories, and the ch
 
 - If you decide to reply, set "shouldReply" to true and write a concise, relevant response that is consistent with your persona.
 - If you decide NOT to reply, set "shouldReply" to false and do not provide a reply.
-`,
-});
+`;
 
-const flow = ai.defineFlow(
-  {
-    name: 'controlAiFlow',
-    inputSchema: ControlAiFlowInputSchema,
-    outputSchema: ControlAiFlowOutputSchema,
-  },
-  async input => {
-    // Prevent AI from replying to itself if it was the last one to speak.
-    if (input.messageToConsider.authorName === input.aiParticipant.name) {
-        return { shouldReply: false };
-    }
-    const {output} = await prompt(input);
-    // Ensure that if shouldReply is false, reply is not sent.
-    if (!output?.shouldReply) {
-        return { shouldReply: false };
-    }
-    return output!;
+const compiledTemplate = Handlebars.compile(PROMPT_TEMPLATE);
+
+
+export async function controlAiFlow(input: ControlAiFlowInput): Promise<ControlAiFlowOutput> {
+  // Prevent AI from replying to itself if it was the last one to speak.
+  if (input.messageToConsider.authorName === input.aiParticipant.name) {
+      return { shouldReply: false };
   }
-);
+
+  const botAi = await getBotAiInstance();
+  const finalPrompt = compiledTemplate(input);
+
+  const result = await botAi.generate({
+    prompt: finalPrompt,
+    model: 'googleai/gemini-2.0-flash',
+    output: {
+        schema: ControlAiFlowOutputSchema,
+    }
+  });
+
+  const output = result.output;
+  
+  // Ensure that if shouldReply is false, reply is not sent.
+  if (!output?.shouldReply) {
+      return { shouldReply: false };
+  }
+  return output!;
+}

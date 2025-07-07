@@ -1,4 +1,3 @@
-// This is an AI-only file, so all code here runs on the server.
 'use server';
 
 /**
@@ -9,7 +8,7 @@
  * - ConfigureAIPersonaOutput - Output type confirming the AI persona configuration.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAI as ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ConfigureAIPersonaInputSchema = z.object({

@@ -8,7 +8,7 @@
  * - ContextAwareResponseOutput - The return type for the getContextAwareResponse function.
  */
 
-import {ai} from '@/ai/genkit';
+import {systemAI as ai} from '@/ai/genkit';
 import {z} from 'genkit';
 
 const ContextAwareResponseInputSchema = z.object({
