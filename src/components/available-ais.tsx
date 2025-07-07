@@ -4,18 +4,25 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { useChat } from '@/lib/hooks/use-chat';
 import { Button } from '@/components/ui/button';
-import { Pencil, PlusCircle } from 'lucide-react';
+import { Pencil, PlusCircle, LogIn, Search } from 'lucide-react';
 import { CreateAIModal } from './create-ai-modal';
 import type { AIAssistant } from '@/lib/types';
+import { Input } from './ui/input';
 
 export function AvailableAIs() {
   const { customAIs, participants, addAIAssistant, activeGroup } = useChat();
   const [isCreateAIModalOpen, setIsCreateAIModalOpen] = useState(false);
   const [selectedAIForEdit, setSelectedAIForEdit] = useState<AIAssistant | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
 
   const handleConfigureClick = (ai: AIAssistant) => {
     setSelectedAIForEdit(ai);
   };
+
+  const filteredAIs = customAIs.filter(ai =>
+    ai.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    ai.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
   
   return (
     <>
@@ -27,8 +34,21 @@ export function AvailableAIs() {
                 Create New AI
             </Button>
         </div>
+
+        {customAIs.length > 0 && (
+            <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <Input 
+                    placeholder="Search available AIs..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                />
+            </div>
+        )}
+
         <div className="space-y-2">
-          {customAIs.map((ai) => {
+          {filteredAIs.map((ai) => {
             const isAdded = participants.some(p => p.id === ai.id);
             return (
               <div key={ai.id} className="group flex items-center p-3 rounded-md bg-card border">
@@ -55,12 +75,18 @@ export function AvailableAIs() {
                     onClick={() => addAIAssistant(ai)}
                     disabled={!activeGroup || isAdded}
                   >
-                    <PlusCircle className="w-5 h-5" />
+                    <LogIn className="w-5 h-5" />
                   </Button>
                 </div>
               </div>
             )
           })}
+           {customAIs.length > 0 && filteredAIs.length === 0 && (
+                <div className="text-center py-10 px-4 border-2 border-dashed rounded-lg">
+                    <h3 className="text-lg font-medium">No AIs Match Your Search</h3>
+                    <p className="text-sm text-muted-foreground mt-1">Try a different search term.</p>
+                </div>
+            )}
            {customAIs.length === 0 && (
                 <div className="text-center py-10 px-4 border-2 border-dashed rounded-lg">
                     <h3 className="text-lg font-medium">No Custom AIs Found</h3>
