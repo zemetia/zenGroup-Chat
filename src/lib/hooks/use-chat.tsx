@@ -218,8 +218,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         timestamp: Date.now(),
       };
   
-      // Step 1: Add new memory and update state synchronously
-      const newStateWithNewMemory = produce(participantsRef.current, draft => {
+      // Step 1: Add new memory and get the next state
+      const stateWithNewMemory = produce(participantsRef.current, draft => {
         const assistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
         if (assistant) {
           assistant.memoryBank = assistant.memoryBank || [];
@@ -227,20 +227,20 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         }
       });
       
-      setParticipants(newStateWithNewMemory);
-      await updateParticipantsForGroupAction(activeGroupId, newStateWithNewMemory);
+      // Update state and then firestore
+      setParticipants(stateWithNewMemory);
+      await updateParticipantsForGroupAction(activeGroupId, stateWithNewMemory);
   
-      // Step 2 & 3: Check for pruning and get plain data from the new state
-      const assistantForPruning = newStateWithNewMemory.find(p => p.id === assistantId) as AIAssistant | undefined;
+      // Step 2: Check for pruning
+      const assistantForPruning = stateWithNewMemory.find(p => p.id === assistantId) as AIAssistant | undefined;
       const shouldPrune = assistantForPruning && assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
   
       if (shouldPrune) {
-        // These are now plain JS arrays since they come from `newStateWithNewMemory`, which is not a proxy.
         const memoriesToPrune = assistantForPruning.memoryBank.slice(0, MEMORY_PRUNE_COUNT);
         const remainingMemories = assistantForPruning.memoryBank.slice(MEMORY_PRUNE_COUNT);
         
         try {
-          // Step 4: Call async function with plain data
+          // Step 3: Call async function with plain data to get summary
           const { prunedSummary } = await pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) });
   
           if (prunedSummary) {
@@ -250,17 +250,17 @@ export function ChatProvider({ children }: { children: ReactNode }) {
               timestamp: Date.now(),
             };
             
-            // Step 5: Update state again with the result of the async operation
-            setParticipants(currentParts => {
-              const finalParticipants = produce(currentParts, draftParts => {
-                const finalAssistant = draftParts.find(p => p.id === assistantId) as AIAssistant | undefined;
-                if (finalAssistant) {
-                  finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories];
-                }
-              });
-              updateParticipantsForGroupAction(activeGroupId, finalParticipants);
-              return finalParticipants;
+            // Step 4: Calculate the final state after pruning
+            const finalParticipantsState = produce(stateWithNewMemory, draft => {
+              const finalAssistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
+              if (finalAssistant) {
+                finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories];
+              }
             });
+
+            // Step 5: Update state and firestore again with the pruned state
+            setParticipants(finalParticipantsState);
+            await updateParticipantsForGroupAction(activeGroupId, finalParticipantsState);
           }
         } catch (e) {
           console.error("Failed to prune memories", e);
