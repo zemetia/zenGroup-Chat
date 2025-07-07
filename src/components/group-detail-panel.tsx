@@ -25,7 +25,7 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
   ];
 
   return (
-    <div className="flex flex-col md:flex-row h-full bg-background">
+    <div className="flex flex-1 flex-col md:flex-row bg-background overflow-hidden">
         {/* Navigation Panel: Top on mobile, Left on desktop */}
         <div className="md:w-64 bg-card md:border-r flex flex-col shrink-0">
             {/* Desktop Title - Hidden on mobile */}
