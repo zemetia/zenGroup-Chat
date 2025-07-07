@@ -27,20 +27,31 @@ const getParticipantsDocRef = (groupId: string) => doc(db, 'chatGroups', groupId
 
 export const getChatGroups = async (): Promise<ChatGroup[]> => {
     const snapshot = await getDocs(groupsCollectionRef);
-    return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...(doc.data() as Omit<ChatGroup, 'id'>)
-    }));
+    // Deserialize the createdAt field from a Firestore Timestamp to a number
+    return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            name: data.name,
+            icon: data.icon,
+            createdAt: data.createdAt.toMillis()
+        } as ChatGroup;
+    });
 };
 
 export const createChatGroup = async (name: string, icon: string): Promise<ChatGroup> => {
     const newGroupData = {
         name,
         icon,
-        createdAt: Date.now(),
+        createdAt: Timestamp.now(), // Use a Firestore Timestamp for consistency
     };
     const docRef = await addDoc(groupsCollectionRef, newGroupData);
-    return { id: docRef.id, ...newGroupData };
+    return { 
+        id: docRef.id, 
+        name: newGroupData.name,
+        icon: newGroupData.icon,
+        createdAt: newGroupData.createdAt.toMillis(), // Return a number for the client
+    };
 };
 
 export const updateChatGroup = async (groupId: string, name: string): Promise<void> => {
