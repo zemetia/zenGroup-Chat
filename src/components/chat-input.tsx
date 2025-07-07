@@ -16,7 +16,7 @@ const chatSchema = z.object({
 type ChatFormValues = z.infer<typeof chatSchema>;
 
 export function ChatInput() {
-  const { sendMessage } = useChat();
+  const { sendMessage, activeGroup } = useChat();
   
   const form = useForm<ChatFormValues>({
     resolver: zodResolver(chatSchema),
@@ -26,6 +26,7 @@ export function ChatInput() {
   });
 
   const onSubmit = async (data: ChatFormValues) => {
+    if (!activeGroup) return;
     await sendMessage(data.message);
     form.reset();
   };
@@ -58,12 +59,13 @@ export function ChatInput() {
                         target.style.height = 'auto';
                         target.style.height = `${target.scrollHeight}px`;
                     }}
+                    disabled={!activeGroup || form.formState.isSubmitting}
                   />
                 </FormControl>
               </FormItem>
             )}
           />
-          <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={form.formState.isSubmitting || !form.formState.isValid}>
+          <Button type="submit" size="icon" className="h-10 w-10 shrink-0" disabled={!activeGroup || form.formState.isSubmitting || !form.formState.isValid}>
               <Send className="h-5 w-5" />
               <span className="sr-only">Send Message</span>
           </Button>

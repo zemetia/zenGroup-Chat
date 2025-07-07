@@ -48,3 +48,10 @@ export type ApiKey = {
   name: string;
   key: string;
 };
+
+export type ChatGroup = {
+    id: string;
+    name: string;
+    icon: string; // Corresponds to a key in the ICONS object
+    createdAt: number;
+};
