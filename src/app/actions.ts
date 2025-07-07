@@ -73,9 +73,11 @@ export const getMessagesForGroupAction = async (
 
 export const addMessageToGroupAction = async (
   groupId: string,
-  message: Omit<Message, 'id' | 'timestamp'>
-): Promise<void> => {
-  return await addMessageToGroup(groupId, message);
+  message: Message
+): Promise<string> => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id, timestamp, ...messageData } = message;
+  return await addMessageToGroup(groupId, messageData);
 };
 
 // --- Participant Actions ---

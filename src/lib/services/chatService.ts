@@ -109,9 +109,10 @@ export const getMessagesForGroup = async (groupId: string): Promise<Message[]> =
     return snapshot.docs.map(deserializeMessageFromFirestore);
 };
 
-export const addMessageToGroup = async (groupId: string, message: Omit<Message, 'id' | 'timestamp'>): Promise<void> => {
+export const addMessageToGroup = async (groupId: string, message: Omit<Message, 'id' | 'timestamp'>): Promise<string> => {
     const serializedMessage = serializeMessageForFirestore(message);
-    await addDoc(getMessagesCollectionRef(groupId), serializedMessage);
+    const docRef = await addDoc(getMessagesCollectionRef(groupId), serializedMessage);
+    return docRef.id;
 };
 
 

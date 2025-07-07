@@ -192,7 +192,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const sanitizedMessages = groupMessages.map(msg => {
             if (msg.type === 'system') return msg;
             const author = validParticipants.find(p => p.id === msg.author.id);
-            return author ? { ...msg, author } : null;
+            return author ? { ...msg, author } : { ...msg, author: { id: msg.author.id, name: "Deleted User", avatar: "", isAI: msg.author.isAI }};
         }).filter((m): m is Message => m !== null);
         
         setMessages(sanitizedMessages);
@@ -379,8 +379,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         const typingDuration = 500 + Math.random() * 2500;
         await new Promise(resolve => setTimeout(resolve, typingDuration));
 
+        const tempId = `msg-temp-ai-${Date.now()}`;
         const aiMessage: Message = {
-          id: `msg-${Date.now()}-${respondingAI.id}`,
+          id: tempId,
           author: participantsRef.current.find(p => p.id === respondingAI.id)!,
           text: reply.reply!,
           timestamp: Date.now(),
@@ -395,10 +396,18 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         
         setMessages(prev => [...prev, aiMessage]);
         
-        await addMessageToGroupAction(activeGroupId, aiMessage);
-        
-        summarizeLastMessage(aiMessage);
-        processAIResponses(aiMessage, depth + 1);
+        try {
+            const finalId = await addMessageToGroupAction(activeGroupId, aiMessage);
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, id: finalId } : m));
+            
+            const finalAiMessage = { ...aiMessage, id: finalId };
+            
+            summarizeLastMessage(finalAiMessage);
+            processAIResponses(finalAiMessage, depth + 1);
+        } catch (error) {
+            console.error("Failed to send AI message:", error);
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+        }
       }
     },
     [activeGroupId, summarizeLastMessage]
@@ -408,8 +417,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     async (text: string) => {
       if (!activeGroupId) return;
 
+      const tempId = `msg-temp-user-${Date.now()}`;
       const newMessage: Message = {
-        id: `msg-${Date.now()}`,
+        id: tempId,
         author: HUMAN_USER,
         text,
         timestamp: Date.now(),
@@ -420,11 +430,21 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setReplyingTo(null);
       setMessages(prev => [...prev, newMessage]);
       
-      await addMessageToGroupAction(activeGroupId, newMessage);
+      try {
+        const finalId = await addMessageToGroupAction(activeGroupId, newMessage);
       
-      processAIResponses(newMessage);
+        setMessages(prev => prev.map(m => (m.id === tempId ? { ...m, id: finalId } : m)));
+
+        const finalNewMessage = { ...newMessage, id: finalId };
+        processAIResponses(finalNewMessage);
+
+      } catch (error) {
+        console.error("Failed to send message:", error);
+        setMessages(prev => prev.filter(m => m.id !== tempId));
+        toast({ title: "Error", description: "Your message could not be sent.", variant: "destructive" });
+      }
     },
-    [activeGroupId, processAIResponses, replyingTo]
+    [activeGroupId, processAIResponses, replyingTo, toast]
   );
   
   const createChatGroup = useCallback(async (name: string) => {
