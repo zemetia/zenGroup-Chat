@@ -26,7 +26,7 @@ const getParticipantsDocRef = (groupId: string) => doc(db, 'chatGroups', groupId
 // == GROUP CRUD ==
 
 export const getChatGroups = async (): Promise<ChatGroup[]> => {
-    const snapshot = await getDocs(groupsCollectionRef);
+    const snapshot = await getDocs(query(groupsCollectionRef, orderBy('createdAt', 'desc')));
     // Deserialize the createdAt field from a Firestore Timestamp to a number
     return snapshot.docs.map(doc => {
         const data = doc.data();
@@ -34,15 +34,17 @@ export const getChatGroups = async (): Promise<ChatGroup[]> => {
             id: doc.id,
             name: data.name,
             icon: data.icon,
-            createdAt: data.createdAt.toMillis()
+            createdAt: data.createdAt.toMillis(),
+            description: data.description || '',
         } as ChatGroup;
     });
 };
 
-export const createChatGroup = async (name: string, icon: string): Promise<ChatGroup> => {
+export const createChatGroup = async (name: string, icon: string, description: string = ''): Promise<ChatGroup> => {
     const newGroupData = {
         name,
         icon,
+        description,
         createdAt: Timestamp.now(), // Use a Firestore Timestamp for consistency
     };
     const docRef = await addDoc(groupsCollectionRef, newGroupData);
@@ -50,13 +52,16 @@ export const createChatGroup = async (name: string, icon: string): Promise<ChatG
         id: docRef.id, 
         name: newGroupData.name,
         icon: newGroupData.icon,
+        description: newGroupData.description,
         createdAt: newGroupData.createdAt.toMillis(), // Return a number for the client
     };
 };
 
-export const updateChatGroup = async (groupId: string, name: string): Promise<void> => {
+export const updateChatGroup = async (groupId: string, updates: { name?: string, icon?: string, description?: string }): Promise<void> => {
     const groupDoc = getGroupDocRef(groupId);
-    await updateDoc(groupDoc, { name });
+    // Filter out undefined values so Firestore doesn't complain
+    const cleanUpdates = Object.fromEntries(Object.entries(updates).filter(([_, v]) => v !== undefined));
+    await updateDoc(groupDoc, cleanUpdates);
 };
 
 export const deleteChatGroup = async (groupId: string): Promise<void> => {

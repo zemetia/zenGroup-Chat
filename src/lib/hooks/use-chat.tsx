@@ -16,7 +16,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import {
   AI_LIMIT,
-  AVAILABLE_AI_ASSISTANTS,
   HUMAN_USER,
   MEMORY_PRUNE_COUNT,
   MEMORY_PRUNE_THRESHOLD,
@@ -56,7 +55,7 @@ interface ChatContextType {
   isLoading: boolean;
   setActiveGroupId: (id: string) => void;
   createChatGroup: (name: string) => Promise<void>;
-  updateChatGroup: (id: string, name: string) => Promise<void>;
+  updateChatGroup: (id: string, updates: { name?: string; icon?: string, description?: string }) => Promise<void>;
   deleteChatGroup: (id: string) => Promise<void>;
   addAIAssistant: (assistant: AIAssistant) => void;
   removeAIParticipant: (assistantId: string) => void;
@@ -167,7 +166,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ]);
 
         // Sanitize participants to ensure they exist and have full data
-        const allAvailableAIs = [...AVAILABLE_AI_ASSISTANTS, ...customAIs];
+        const allAvailableAIs = [...customAIs];
         const validParticipants = (groupParticipants.length > 0 ? groupParticipants : [HUMAN_USER]).map(p => {
           if (!p || !p.id) return null;
           if (p.id === HUMAN_USER.id) return HUMAN_USER;
@@ -398,10 +397,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       }
   }, [toast]);
 
-  const updateChatGroup = useCallback(async (id: string, name: string) => {
+  const updateChatGroup = useCallback(async (id: string, updates: { name?: string; icon?: string; description?: string }) => {
       try {
-        await updateChatGroupAction(id, name);
-        setGroups(prev => prev.map(g => g.id === id ? { ...g, name } : g));
+        await updateChatGroupAction(id, updates);
+        setGroups(prev => prev.map(g => g.id === id ? { ...g, ...updates } : g));
         toast({ title: "Conversation Updated" });
       } catch (error) {
           console.error("Failed to update group", error);
@@ -527,7 +526,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     async (assistantId: string, persona: Persona, name?: string) => {
       if (!activeGroupId) return;
 
-      const allAIs = [...customAIs, ...AVAILABLE_AI_ASSISTANTS];
+      const allAIs = [...customAIs];
       const assistantToUpdate = allAIs.find(ai => ai.id === assistantId);
       try {
         if (assistantToUpdate?.isCustom) {

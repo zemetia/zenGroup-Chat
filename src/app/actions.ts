@@ -50,14 +50,14 @@ export const createChatGroupAction = async (
   name: string,
   icon: string
 ): Promise<ChatGroup> => {
-  return await createChatGroup(name, icon);
+  return await createChatGroup(name, icon, 'Add a description...');
 };
 
 export const updateChatGroupAction = async (
   groupId: string,
-  name: string
+  updates: { name?: string; icon?: string; description?: string }
 ): Promise<void> => {
-  return await updateChatGroup(groupId, name);
+  return await updateChatGroup(groupId, updates);
 };
 
 export const deleteChatGroupAction = async (groupId: string): Promise<void> => {

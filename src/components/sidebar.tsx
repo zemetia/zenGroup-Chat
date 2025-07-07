@@ -10,9 +10,10 @@ interface SidebarProps {
     isMobile: boolean;
     isOpen: boolean;
     toggleSidebar: () => void;
+    onShowDetails: () => void;
 }
 
-export function Sidebar({ isMobile, isOpen, toggleSidebar }: SidebarProps) {
+export function Sidebar({ isMobile, isOpen, toggleSidebar, onShowDetails }: SidebarProps) {
 
     if (isMobile) {
         return (
@@ -26,7 +27,7 @@ export function Sidebar({ isMobile, isOpen, toggleSidebar }: SidebarProps) {
                                     <X className="h-5 w-5" />
                                 </Button>
                             </div>
-                            <SidebarContent />
+                            <SidebarContent onShowDetails={onShowDetails} />
                         </aside>
                     </>
                 )}
@@ -36,7 +37,7 @@ export function Sidebar({ isMobile, isOpen, toggleSidebar }: SidebarProps) {
 
     return (
         <aside className="hidden md:flex flex-col w-80 border-r border-border bg-card">
-            <SidebarContent />
+            <SidebarContent onShowDetails={onShowDetails} />
         </aside>
     );
 }

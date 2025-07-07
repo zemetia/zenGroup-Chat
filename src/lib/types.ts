@@ -54,4 +54,5 @@ export type ChatGroup = {
     name: string;
     icon: string; // Corresponds to a key in the ICONS object
     createdAt: number;
+    description?: string;
 };
