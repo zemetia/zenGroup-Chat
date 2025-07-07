@@ -218,41 +218,51 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             timestamp: Date.now(),
         };
 
-        const nextParticipants = produce(participantsRef.current, draft => {
+        let memoriesToPrune: Memory[] | null = null;
+        let remainingMemories: Memory[] | null = null;
+        
+        const nextParticipantsWithNewMemory = produce(participantsRef.current, draft => {
             const assistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
             if (assistant) {
                 assistant.memoryBank = assistant.memoryBank || [];
                 assistant.memoryBank.push(memoryItem);
-
+                
                 if (assistant.memoryBank.length > MEMORY_PRUNE_THRESHOLD) {
-                    const memoriesToPrune = assistant.memoryBank.slice(0, MEMORY_PRUNE_COUNT);
-                    const remainingMemories = assistant.memoryBank.slice(MEMORY_PRUNE_COUNT);
-                    
-                    pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) })
-                        .then(({ prunedSummary }) => {
-                            if (prunedSummary) {
-                                const prunedMemoryItem: Memory = {
-                                    id: `mem-pruned-${Date.now()}`,
-                                    content: prunedSummary,
-                                    timestamp: Date.now(),
-                                };
-                                // This update needs to be careful not to cause a race condition
-                                // The ideal way is to refetch and merge, but for now we'll update the main state
-                                setParticipants(currentParts => produce(currentParts, draftParts => {
-                                    const finalAssistant = draftParts.find(p => p.id === assistantId) as AIAssistant | undefined;
-                                    if(finalAssistant) {
-                                        finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories];
-                                    }
-                                }));
-                                updateParticipantsForGroupAction(activeGroupId, participantsRef.current);
-                            }
-                        }).catch(e => console.error("Failed to prune memories", e));
+                    memoriesToPrune = assistant.memoryBank.slice(0, MEMORY_PRUNE_COUNT);
+                    remainingMemories = assistant.memoryBank.slice(MEMORY_PRUNE_COUNT);
                 }
             }
         });
         
-        setParticipants(nextParticipants);
-        await updateParticipantsForGroupAction(activeGroupId, nextParticipants);
+        setParticipants(nextParticipantsWithNewMemory);
+        await updateParticipantsForGroupAction(activeGroupId, nextParticipantsWithNewMemory);
+
+        if (memoriesToPrune && remainingMemories) {
+            try {
+                const { prunedSummary } = await pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) });
+
+                if (prunedSummary) {
+                    const prunedMemoryItem: Memory = {
+                        id: `mem-pruned-${Date.now()}`,
+                        content: prunedSummary,
+                        timestamp: Date.now(),
+                    };
+                    
+                    setParticipants(currentParts => {
+                        const finalParticipants = produce(currentParts, draftParts => {
+                            const finalAssistant = draftParts.find(p => p.id === assistantId) as AIAssistant | undefined;
+                            if (finalAssistant) {
+                                finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories!];
+                            }
+                        });
+                        updateParticipantsForGroupAction(activeGroupId, finalParticipants);
+                        return finalParticipants;
+                    });
+                }
+            } catch (e) {
+                console.error("Failed to prune memories", e);
+            }
+        }
     },
     [activeGroupId]
   );
