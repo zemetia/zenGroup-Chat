@@ -230,11 +230,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     for (const reply of replies) {
       const respondingAI = reply.ai;
       
-      const thinkingDelay = 500 + Math.random() * 1000;
+      const thinkingDelay = 500 + Math.random() * 1500;
       await new Promise(resolve => setTimeout(resolve, thinkingDelay));
       setParticipants(prev => prev.map(p => p.id === respondingAI.id ? { ...p, isTyping: true } : p));
 
-      const typingDuration = 1000 + Math.random() * 2000;
+      const typingDuration = 1500 + Math.random() * 3500;
       await new Promise(resolve => setTimeout(resolve, typingDuration));
       
       const aiMessage: Message = {
