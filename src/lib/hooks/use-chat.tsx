@@ -369,8 +369,6 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       for (const reply of replies) {
         const respondingAI = reply.ai;
 
-        const thinkingDelay = 500 + Math.random() * 1500;
-        await new Promise(resolve => setTimeout(resolve, thinkingDelay));
         setParticipants(prev =>
           produce(prev, draft => {
             const p = draft.find(p => p.id === respondingAI.id);
@@ -378,7 +376,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
           })
         );
 
-        const typingDuration = 1500 + Math.random() * 3500;
+        const typingDuration = 500 + Math.random() * 2500;
         await new Promise(resolve => setTimeout(resolve, typingDuration));
 
         const aiMessage: Message = {
@@ -397,7 +395,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         
         setMessages(prev => [...prev, aiMessage]);
         
-        addMessageToGroupAction(activeGroupId, aiMessage);
+        await addMessageToGroupAction(activeGroupId, aiMessage);
+        
         summarizeLastMessage(aiMessage);
         processAIResponses(aiMessage, depth + 1);
       }
@@ -421,7 +420,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       setReplyingTo(null);
       setMessages(prev => [...prev, newMessage]);
       
-      addMessageToGroupAction(activeGroupId, newMessage);
+      await addMessageToGroupAction(activeGroupId, newMessage);
       
       processAIResponses(newMessage);
     },

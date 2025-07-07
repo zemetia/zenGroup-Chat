@@ -87,6 +87,10 @@ const serializeMessageForFirestore = (message: Omit<Message, 'id' | 'timestamp'>
             isAI: message.author.isAI,
         };
     }
+    // Remove undefined fields so they are not stored in Firestore
+    if (messageData.replyToId === undefined) {
+        delete messageData.replyToId;
+    }
     return messageData;
 };
 
