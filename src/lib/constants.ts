@@ -1,9 +1,11 @@
 import type { User } from './types';
 
+const randomAvatarId = Math.random().toString(36).substring(2, 10);
+
 export const HUMAN_USER: User = {
   id: 'human-user',
   name: 'You',
-  avatar: 'https://placehold.co/40x40.png',
+  avatar: `https://avatar.iran.liara.run/public/${randomAvatarId}`,
   isAI: false,
 };
 
