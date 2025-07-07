@@ -100,7 +100,7 @@ export function CreateAIModal({ isOpen, onOpenChange, ai }: CreateAIModalProps) 
     if (ai) {
       await updateAIPersona(ai.id, persona, data.name);
     } else {
-      addCustomAIAssistant({
+      await addCustomAIAssistant({
         name: data.name,
         persona: persona,
       });
@@ -193,7 +193,7 @@ export function CreateAIModal({ isOpen, onOpenChange, ai }: CreateAIModalProps) 
                 </div>
                 <div className="flex gap-2">
                   <Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>
-                  <Button type="submit" disabled={form.formState.isSubmitting}>{ai ? 'Save Changes' : 'Create AI'}</Button>
+                  <Button type="submit" disabled={form.formState.isSubmitting}>{form.formState.isSubmitting ? (ai ? 'Saving...' : 'Creating...') : (ai ? 'Save Changes' : 'Create AI')}</Button>
                 </div>
             </DialogFooter>
           </form>

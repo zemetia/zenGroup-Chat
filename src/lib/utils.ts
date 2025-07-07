@@ -14,3 +14,28 @@ const ICON_NAMES = [
 export function getRandomIconName(): string {
   return ICON_NAMES[Math.floor(Math.random() * ICON_NAMES.length)];
 }
+
+/**
+ * Fetches an image from a URL and converts it to a Base64 data URI.
+ * @param url The URL of the image to fetch.
+ * @returns A promise that resolves to the Base64 data URI.
+ */
+export const fetchImageAsBase64 = async (url: string): Promise<string> => {
+    try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch image: ${response.statusText}`);
+        }
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (error) {
+        console.error("Image fetch error:", error);
+        // Fallback to a placeholder if the fetch fails
+        return 'https://placehold.co/40x40.png';
+    }
+};

@@ -6,3 +6,4 @@ import '@/ai/flows/ai-flow-controller.ts';
 import '@/ai/flows/ai-chat-context.ts';
 import '@/ai/flows/ai-prompt-optimizer.ts';
 import '@/ai/flows/memory-manager.ts';
+import '@/ai/flows/ai-avatar-generator.ts';

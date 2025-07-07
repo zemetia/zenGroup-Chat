@@ -2,6 +2,7 @@
 'use client';
 
 import { controlAiFlow } from '@/ai/flows/ai-flow-controller';
+import { getAvatarStyle } from '@/ai/flows/ai-avatar-generator';
 import { pruneMemories, summarizeAndStore } from '@/ai/flows/memory-manager';
 import {
   addMessageToGroupAction,
@@ -28,7 +29,7 @@ import type {
   Participant,
   Persona,
 } from '@/lib/types';
-import { getRandomIconName } from '../utils';
+import { fetchImageAsBase64, getRandomIconName } from '../utils';
 import React, {
   createContext,
   useCallback,
@@ -70,7 +71,7 @@ interface ChatContextType {
       AIAssistant,
       'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'
     > & { description?: string }
-  ) => void;
+  ) => Promise<void>;
   removeCustomAIAssistant: (assistantId: string) => void;
   addAIMemory: (assistantId: string, content: string) => void;
   updateAIMemory: (
@@ -211,59 +212,85 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const updateMemoryAndPrune = useCallback(
     async (assistantId: string, newMemoryContent: string) => {
       if (!activeGroupId) return;
-  
+
       const memoryItem: Memory = {
         id: `mem-${Date.now()}`,
         content: newMemoryContent,
         timestamp: Date.now(),
       };
-  
-      // Step 1: Add new memory and get the next state
-      const nextParticipants = produce(participantsRef.current, draft => {
-        const assistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
-        if (assistant) {
-          assistant.memoryBank = assistant.memoryBank || [];
-          assistant.memoryBank.push(memoryItem);
+
+      // Step 1: Add new memory and update state + firestore
+      const nextParticipantsWithNewMemory = produce(
+        participantsRef.current,
+        draft => {
+          const assistant = draft.find(
+            p => p.id === assistantId
+          ) as AIAssistant | undefined;
+          if (assistant) {
+            assistant.memoryBank = assistant.memoryBank || [];
+            assistant.memoryBank.push(memoryItem);
+          }
         }
-      });
-      
-      // Update state and then firestore
-      setParticipants(nextParticipants);
-      await updateParticipantsForGroupAction(activeGroupId, nextParticipants);
-  
-      // Step 2: Check for pruning
-      const assistantForPruning = nextParticipants.find(p => p.id === assistantId) as AIAssistant | undefined;
-      const shouldPrune = assistantForPruning && assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
-  
+      );
+
+      setParticipants(nextParticipantsWithNewMemory);
+      await updateParticipantsForGroupAction(
+        activeGroupId,
+        nextParticipantsWithNewMemory
+      );
+
+      // Step 2: Check if pruning is needed
+      const assistantForPruning = nextParticipantsWithNewMemory.find(
+        p => p.id === assistantId
+      ) as AIAssistant | undefined;
+      const shouldPrune =
+        assistantForPruning &&
+        assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
+
       if (shouldPrune) {
-        const memoriesToPrune = assistantForPruning.memoryBank.slice(0, MEMORY_PRUNE_COUNT);
-        const remainingMemories = assistantForPruning.memoryBank.slice(MEMORY_PRUNE_COUNT);
-        
+        // We're working with a plain object now, not a proxy
+        const memoriesToPrune = assistantForPruning.memoryBank
+          .slice(0, MEMORY_PRUNE_COUNT)
+          .map(m => m.content);
+        const remainingMemories =
+          assistantForPruning.memoryBank.slice(MEMORY_PRUNE_COUNT);
+
         try {
-          // Step 3: Call async function with plain data to get summary
-          const { prunedSummary } = await pruneMemories({ memoriesToPrune: memoriesToPrune.map(m => m.content) });
-  
+          // Step 3: Get summary for the memories to be pruned
+          const { prunedSummary } = await pruneMemories({ memoriesToPrune });
+
           if (prunedSummary) {
             const prunedMemoryItem: Memory = {
               id: `mem-pruned-${Date.now()}`,
               content: prunedSummary,
               timestamp: Date.now(),
             };
-            
-            // Step 4: Calculate the final state after pruning
-            const finalParticipantsState = produce(nextParticipants, draft => {
-              const finalAssistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
-              if (finalAssistant) {
-                finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories];
-              }
-            });
 
-            // Step 5: Update state and firestore again with the pruned state
+            // Step 4: Calculate final state with pruned memories
+            const finalParticipantsState = produce(
+              nextParticipantsWithNewMemory,
+              draft => {
+                const finalAssistant = draft.find(
+                  p => p.id === assistantId
+                ) as AIAssistant | undefined;
+                if (finalAssistant) {
+                  finalAssistant.memoryBank = [
+                    prunedMemoryItem,
+                    ...remainingMemories,
+                  ];
+                }
+              }
+            );
+
+            // Step 5: Update state and firestore again
             setParticipants(finalParticipantsState);
-            await updateParticipantsForGroupAction(activeGroupId, finalParticipantsState);
+            await updateParticipantsForGroupAction(
+              activeGroupId,
+              finalParticipantsState
+            );
           }
         } catch (e) {
-          console.error("Failed to prune memories", e);
+          console.error('Failed to prune memories', e);
         }
       }
     },
@@ -483,16 +510,29 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         'id' | 'avatar' | 'isAI' | 'isCustom' | 'description' | 'memoryBank'
       > & { description?: string }
     ) => {
-      const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
-        ...data,
-        avatar: 'https://placehold.co/40x40.png',
-        isAI: true,
-        isCustom: true,
-        description:
-          data.description ||
-          `Custom AI with expertise in ${data.persona.expertise}.`,
-      };
       try {
+        // 1. Determine avatar style
+        const fullPersona = `Tone: ${data.persona.tone}, Expertise: ${data.persona.expertise}. ${data.persona.additionalInstructions || ''}`;
+        const { style } = await getAvatarStyle({ name: data.name, persona: fullPersona });
+
+        // 2. Build avatar URL
+        let avatarUrl = 'https://avatar.iran.liara.run/public';
+        if (style === 'boy' || style === 'girl') {
+            avatarUrl = `https://avatar.iran.liara.run/public/${style}`;
+        }
+        
+        // 3. Fetch avatar and convert to Base64
+        const avatarBase64 = await fetchImageAsBase64(avatarUrl);
+
+        const newAssistantData: Omit<AIAssistant, 'id' | 'memoryBank'> = {
+          ...data,
+          avatar: avatarBase64,
+          isAI: true,
+          isCustom: true,
+          description:
+            data.description ||
+            `Custom AI with expertise in ${data.persona.expertise}.`,
+        };
         const newId = await addCustomAIToFirestore(newAssistantData);
         const newAI = { ...newAssistantData, id: newId, memoryBank: [] };
         setCustomAIs(prev => [...prev, newAI]);
