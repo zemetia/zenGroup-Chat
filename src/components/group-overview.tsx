@@ -103,7 +103,7 @@ export function GroupOverview({ group }: GroupOverviewProps) {
               <FormItem>
                 <FormLabel>Group Icon</FormLabel>
                 <FormControl>
-                    <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 gap-2 p-2 border rounded-md">
+                    <div className="grid grid-cols-[repeat(auto-fill,minmax(3rem,1fr))] gap-2 p-2 border rounded-md">
                         {iconNames.map(iconName => (
                             <Button
                                 key={iconName}
