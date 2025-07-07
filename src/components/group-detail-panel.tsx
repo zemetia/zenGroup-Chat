@@ -25,7 +25,7 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
   ];
 
   return (
-    <div className="flex flex-1 flex-col md:flex-row bg-background overflow-hidden">
+    <div className="flex flex-1 flex-col overflow-hidden">
         {/* Navigation Panel: Top on mobile, Left on desktop */}
         <div className="md:w-64 bg-card md:border-r flex flex-col shrink-0">
             {/* Desktop Title - Hidden on mobile */}
@@ -34,12 +34,12 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
             </div>
             
             {/* Tabs */}
-            <nav className="flex md:flex-col p-2 space-x-1 md:space-x-0 md:space-y-1 border-b md:border-b-0">
+            <nav className="flex md:flex-col p-2 space-x-1 md:space-x-0 md:space-y-1 border-b md:border-b-0 overflow-x-auto">
                 {TABS.map(tab => (
                     <Button 
                         key={tab.id}
                         variant={activeTab === tab.id ? 'secondary' : 'ghost'}
-                        className="flex-1 md:w-full justify-center md:justify-start gap-3 text-base h-11"
+                        className="shrink-0 md:w-full justify-center md:justify-start gap-3 text-base h-11"
                         onClick={() => setActiveTab(tab.id)}
                     >
                         <tab.icon className="h-5 w-5" />
