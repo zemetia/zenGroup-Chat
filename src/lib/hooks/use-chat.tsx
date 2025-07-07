@@ -219,7 +219,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
   
       // Step 1: Add new memory and get the next state
-      const stateWithNewMemory = produce(participantsRef.current, draft => {
+      const nextParticipants = produce(participantsRef.current, draft => {
         const assistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
         if (assistant) {
           assistant.memoryBank = assistant.memoryBank || [];
@@ -228,11 +228,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       });
       
       // Update state and then firestore
-      setParticipants(stateWithNewMemory);
-      await updateParticipantsForGroupAction(activeGroupId, stateWithNewMemory);
+      setParticipants(nextParticipants);
+      await updateParticipantsForGroupAction(activeGroupId, nextParticipants);
   
       // Step 2: Check for pruning
-      const assistantForPruning = stateWithNewMemory.find(p => p.id === assistantId) as AIAssistant | undefined;
+      const assistantForPruning = nextParticipants.find(p => p.id === assistantId) as AIAssistant | undefined;
       const shouldPrune = assistantForPruning && assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
   
       if (shouldPrune) {
@@ -251,7 +251,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
             };
             
             // Step 4: Calculate the final state after pruning
-            const finalParticipantsState = produce(stateWithNewMemory, draft => {
+            const finalParticipantsState = produce(nextParticipants, draft => {
               const finalAssistant = draft.find(p => p.id === assistantId) as AIAssistant | undefined;
               if (finalAssistant) {
                 finalAssistant.memoryBank = [prunedMemoryItem, ...remainingMemories];
@@ -392,8 +392,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       };
       setMessages(prev => [...prev, newMessage]);
 
+      // First, save the user's message to the database.
       await addMessageToGroupAction(activeGroupId, newMessage);
-      await processAIResponses(newMessage);
+      
+      // Then, trigger the AI response flow without awaiting it.
+      // This allows the UI to become responsive immediately.
+      processAIResponses(newMessage);
     },
     [activeGroupId, processAIResponses]
   );
