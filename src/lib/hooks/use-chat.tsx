@@ -54,6 +54,8 @@ interface ChatContextType {
   participants: Participant[];
   customAIs: AIAssistant[];
   isLoading: boolean;
+  replyingTo: Message | null;
+  setReplyingTo: (message: Message | null) => void;
   setActiveGroupId: (id: string) => void;
   createChatGroup: (name: string) => Promise<void>;
   updateChatGroup: (id: string, updates: { name?: string; icon?: string, description?: string }) => Promise<void>;
@@ -93,6 +95,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [customAIs, setCustomAIs] = useState<AIAssistant[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [replyingTo, setReplyingTo] = useState<Message | null>(null);
 
   const { toast } = useToast();
 
@@ -211,92 +214,87 @@ export function ChatProvider({ children }: { children: ReactNode }) {
 
   const updateMemoryAndPrune = useCallback(
     async (assistantId: string, newMemoryContent: string) => {
-      if (!activeGroupId) return;
-
-      const memoryItem: Memory = {
-        id: `mem-${Date.now()}`,
-        content: newMemoryContent,
-        timestamp: Date.now(),
-      };
-
-      // Step 1: Add new memory and update state + firestore
-      const nextParticipantsWithNewMemory = produce(
-        participantsRef.current,
-        draft => {
-          const assistant = draft.find(
-            p => p.id === assistantId
-          ) as AIAssistant | undefined;
-          if (assistant) {
-            assistant.memoryBank = assistant.memoryBank || [];
-            assistant.memoryBank.push(memoryItem);
-          }
-        }
-      );
-
-      setParticipants(nextParticipantsWithNewMemory);
-      await updateParticipantsForGroupAction(
-        activeGroupId,
-        nextParticipantsWithNewMemory
-      );
-
-      // Step 2: Check if pruning is needed
-      const assistantForPruning = nextParticipantsWithNewMemory.find(
-        p => p.id === assistantId
-      ) as AIAssistant | undefined;
-      const shouldPrune =
-        assistantForPruning &&
-        assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
-
-      if (shouldPrune) {
-        // We're working with a plain object now, not a proxy
-        const memoriesToPrune = assistantForPruning.memoryBank
-          .slice(0, MEMORY_PRUNE_COUNT)
-          .map(m => m.content);
-        const remainingMemories =
-          assistantForPruning.memoryBank.slice(MEMORY_PRUNE_COUNT);
-
-        try {
-          // Step 3: Get summary for the memories to be pruned
-          const { prunedSummary } = await pruneMemories({ memoriesToPrune });
-
-          if (prunedSummary) {
-            const prunedMemoryItem: Memory = {
-              id: `mem-pruned-${Date.now()}`,
-              content: prunedSummary,
-              timestamp: Date.now(),
-            };
-
-            // Step 4: Calculate final state with pruned memories
-            const finalParticipantsState = produce(
-              nextParticipantsWithNewMemory,
-              draft => {
-                const finalAssistant = draft.find(
-                  p => p.id === assistantId
+        if (!activeGroupId) return;
+    
+        const memoryItem: Memory = {
+            id: `mem-${Date.now()}`,
+            content: newMemoryContent,
+            timestamp: Date.now(),
+        };
+    
+        // Calculate the next state first
+        const nextParticipantsWithNewMemory = produce(
+            participantsRef.current,
+            draft => {
+                const assistant = draft.find(
+                    p => p.id === assistantId
                 ) as AIAssistant | undefined;
-                if (finalAssistant) {
-                  finalAssistant.memoryBank = [
-                    prunedMemoryItem,
-                    ...remainingMemories,
-                  ];
+                if (assistant) {
+                    assistant.memoryBank = assistant.memoryBank || [];
+                    assistant.memoryBank.push(memoryItem);
                 }
-              }
-            );
-
-            // Step 5: Update state and firestore again
-            setParticipants(finalParticipantsState);
-            await updateParticipantsForGroupAction(
-              activeGroupId,
-              finalParticipantsState
-            );
-          }
-        } catch (e) {
-          console.error('Failed to prune memories', e);
+            }
+        );
+    
+        // Update state and Firestore with the new memory
+        setParticipants(nextParticipantsWithNewMemory);
+        await updateParticipantsForGroupAction(activeGroupId, nextParticipantsWithNewMemory);
+    
+        // Now, perform the pruning logic based on the updated state
+        const assistantForPruning = nextParticipantsWithNewMemory.find(
+            p => p.id === assistantId
+        ) as AIAssistant | undefined;
+        const shouldPrune =
+            assistantForPruning &&
+            assistantForPruning.memoryBank.length > MEMORY_PRUNE_THRESHOLD;
+    
+        if (shouldPrune) {
+            const memoriesToPrune = assistantForPruning.memoryBank
+                .slice(0, MEMORY_PRUNE_COUNT)
+                .map(m => m.content);
+            const remainingMemories =
+                assistantForPruning.memoryBank.slice(MEMORY_PRUNE_COUNT);
+    
+            try {
+                const { prunedSummary } = await pruneMemories({ memoriesToPrune });
+    
+                if (prunedSummary) {
+                    const prunedMemoryItem: Memory = {
+                        id: `mem-pruned-${Date.now()}`,
+                        content: prunedSummary,
+                        timestamp: Date.now(),
+                    };
+    
+                    const finalParticipantsState = produce(
+                        nextParticipantsWithNewMemory,
+                        draft => {
+                            const finalAssistant = draft.find(
+                                p => p.id === assistantId
+                            ) as AIAssistant | undefined;
+                            if (finalAssistant) {
+                                finalAssistant.memoryBank = [
+                                    prunedMemoryItem,
+                                    ...remainingMemories,
+                                ];
+                            }
+                        }
+                    );
+    
+                    // Update state and Firestore again with the pruned memories
+                    setParticipants(finalParticipantsState);
+                    await updateParticipantsForGroupAction(
+                        activeGroupId,
+                        finalParticipantsState
+                    );
+                }
+            } catch (e) {
+                console.error('Failed to prune memories', e);
+            }
         }
-      }
     },
     [activeGroupId]
   );
-
+  
   const summarizeLastMessage = useCallback(
     async (message: Message) => {
       if (message.type !== 'ai' || !message.author.isAI) return;
@@ -416,17 +414,16 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         text,
         timestamp: Date.now(),
         type: 'user',
+        ...(replyingTo && { replyToId: replyingTo.id }),
       };
       setMessages(prev => [...prev, newMessage]);
+      setReplyingTo(null);
 
-      // First, save the user's message to the database.
       await addMessageToGroupAction(activeGroupId, newMessage);
       
-      // Then, trigger the AI response flow without awaiting it.
-      // This allows the UI to become responsive immediately.
       processAIResponses(newMessage);
     },
-    [activeGroupId, processAIResponses]
+    [activeGroupId, processAIResponses, replyingTo]
   );
   
   const createChatGroup = useCallback(async (name: string) => {
@@ -678,6 +675,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     participants,
     customAIs,
     isLoading,
+    replyingTo,
+    setReplyingTo,
     setActiveGroupId,
     createChatGroup,
     updateChatGroup,

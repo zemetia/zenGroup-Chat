@@ -3,7 +3,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { Send } from 'lucide-react';
+import { Send, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Form, FormControl, FormField, FormItem } from '@/components/ui/form';
 import { Textarea } from '@/components/ui/textarea';
@@ -16,7 +16,7 @@ const chatSchema = z.object({
 type ChatFormValues = z.infer<typeof chatSchema>;
 
 export function ChatInput() {
-  const { sendMessage, activeGroup } = useChat();
+  const { sendMessage, activeGroup, replyingTo, setReplyingTo } = useChat();
   
   const form = useForm<ChatFormValues>({
     resolver: zodResolver(chatSchema),
@@ -40,6 +40,23 @@ export function ChatInput() {
 
   return (
     <div className="p-4 border-t bg-card shrink-0">
+      {replyingTo && replyingTo.author && (
+          <div className="max-w-4xl mx-auto mb-2 p-2 bg-accent rounded-md text-sm">
+              <div className="flex justify-between items-center">
+                  <div className="flex-1 overflow-hidden">
+                      <p className="font-semibold text-accent-foreground">
+                          Replying to {replyingTo.author.name}
+                      </p>
+                      <p className="text-muted-foreground line-clamp-1 truncate">
+                          {replyingTo.text}
+                      </p>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => setReplyingTo(null)}>
+                      <X className="h-4 w-4" />
+                  </Button>
+              </div>
+          </div>
+      )}
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="flex items-start gap-4 max-w-4xl mx-auto">
           <FormField

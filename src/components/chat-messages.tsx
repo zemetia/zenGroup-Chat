@@ -16,7 +16,7 @@ const UNKNOWN_USER: Participant = {
 };
 
 export function ChatMessages() {
-  const { messages, participants } = useChat();
+  const { messages, participants, setReplyingTo } = useChat();
   const viewportRef = useRef<HTMLDivElement>(null);
   const [showScrollDownButton, setShowScrollDownButton] = useState(false);
   const atBottomRef = useRef(true);
@@ -111,42 +111,57 @@ export function ChatMessages() {
                     <AvatarFallback><Bot /></AvatarFallback>
                   </Avatar>
                 )}
-                <div className={cn("flex flex-col gap-1.5 max-w-xl", isUser && "items-end")}>
-                  <p className={cn("text-xs text-muted-foreground", isUser ? "text-right" : "text-left")}>{isUser ? 'You' : author.name}</p>
-                  <div
-                    className={cn(
-                      "p-3 rounded-lg",
-                      isUser
-                        ? "bg-primary text-primary-foreground rounded-br-none"
-                        : "bg-card text-card-foreground rounded-bl-none border"
-                    )}
-                  >
-                    
-                    {repliedToMessage && repliedToMessage.type !== 'system' && repliedToMessage.author && (
-                      <button
-                        onClick={() => handleReplyClick(repliedToMessage.id)}
+                
+                <div className={cn("group flex items-center gap-2", isUser && "flex-row-reverse")}>
+                    <div className={cn("flex flex-col gap-1.5 max-w-xl", isUser && "items-end")}>
+                      <p className={cn("text-xs text-muted-foreground", isUser ? "text-right" : "text-left")}>{isUser ? 'You' : author.name}</p>
+                      <div
                         className={cn(
-                          "w-full text-left p-2 mb-2 rounded-md transition-colors border-l-4",
-                          isUser ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 border-primary-foreground/50" : "bg-muted hover:bg-secondary border-border"
+                          "p-3 rounded-lg",
+                          isUser
+                            ? "bg-primary text-primary-foreground rounded-br-none"
+                            : "bg-card text-card-foreground rounded-bl-none border"
                         )}
                       >
-                        <div className="flex items-start gap-2">
-                          <CornerUpLeft className="w-4 h-4 mt-0.5 shrink-0" />
-                          <div className="flex-1">
-                            <p className="font-semibold text-xs opacity-80">
-                              {repliedToMessage.author.name}
-                            </p>
-                            <p className="text-sm opacity-70 line-clamp-2">
-                              {repliedToMessage.text}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-                    )}
+                        
+                        {repliedToMessage && repliedToMessage.type !== 'system' && repliedToMessage.author && (
+                          <button
+                            onClick={() => handleReplyClick(repliedToMessage.id)}
+                            className={cn(
+                              "w-full text-left p-2 mb-2 rounded-md transition-colors border-l-4",
+                              isUser ? "bg-primary-foreground/10 hover:bg-primary-foreground/20 border-primary-foreground/50" : "bg-muted hover:bg-secondary border-border"
+                            )}
+                          >
+                            <div className="flex items-start gap-2">
+                              <CornerUpLeft className="w-4 h-4 mt-0.5 shrink-0" />
+                              <div className="flex-1">
+                                <p className="font-semibold text-xs opacity-80">
+                                  {repliedToMessage.author.name}
+                                </p>
+                                <p className="text-sm opacity-70 line-clamp-2">
+                                  {repliedToMessage.text}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        )}
 
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
-                  </div>
+                        <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.text}</p>
+                      </div>
+                    </div>
+
+                    {message.type !== 'system' && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="w-8 h-8 shrink-0 self-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setReplyingTo(message)}
+                        >
+                          <CornerUpLeft className="w-4 h-4" />
+                        </Button>
+                      )}
                 </div>
+
 
                 {isUser && (
                   <Avatar className="w-9 h-9 shrink-0">
