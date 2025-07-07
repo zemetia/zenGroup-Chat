@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Info, Users, Bot } from 'lucide-react';
+import { Info, Users, Bot } from 'lucide-react';
 import { GroupOverview } from './group-overview';
 import { GroupMembers } from './group-members';
 import { AvailableAIs } from './available-ais';
@@ -11,12 +11,11 @@ import type { ChatGroup } from '@/lib/types';
 
 interface GroupDetailPanelProps {
   group: ChatGroup;
-  onClose: () => void;
 }
 
 type Tab = 'overview' | 'members' | 'ais';
 
-export function GroupDetailPanel({ group, onClose }: GroupDetailPanelProps) {
+export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
   
   const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -26,21 +25,21 @@ export function GroupDetailPanel({ group, onClose }: GroupDetailPanelProps) {
   ];
 
   return (
-    <div className="flex h-full bg-background">
-        {/* Left Navigation */}
-        <div className="w-64 bg-card border-r flex flex-col">
-            <div className="p-4 border-b h-16 flex items-center gap-2 shrink-0">
-                <Button variant="ghost" size="icon" onClick={onClose} className="h-9 w-9">
-                    <ArrowLeft className="h-5 w-5" />
-                </Button>
+    <div className="flex flex-col md:flex-row h-full bg-background">
+        {/* Navigation Panel: Top on mobile, Left on desktop */}
+        <div className="md:w-64 bg-card md:border-r flex flex-col shrink-0">
+            {/* Desktop Title */}
+            <div className="p-4 border-b h-16 hidden md:flex items-center">
                 <h2 className="text-lg font-semibold tracking-tight">Group Info</h2>
             </div>
-            <nav className="p-2 space-y-1">
+            
+            {/* Tabs */}
+            <nav className="flex md:flex-col p-2 space-x-1 md:space-x-0 md:space-y-1 border-b md:border-b-0">
                 {TABS.map(tab => (
                     <Button 
                         key={tab.id}
                         variant={activeTab === tab.id ? 'secondary' : 'ghost'}
-                        className="w-full justify-start gap-3 text-base h-11"
+                        className="flex-1 md:w-full justify-center md:justify-start gap-3 text-base h-11"
                         onClick={() => setActiveTab(tab.id)}
                     >
                         <tab.icon className="h-5 w-5" />
@@ -50,7 +49,7 @@ export function GroupDetailPanel({ group, onClose }: GroupDetailPanelProps) {
             </nav>
         </div>
 
-        {/* Right Content */}
+        {/* Content Panel */}
         <div className="flex-1 overflow-hidden">
             <ScrollArea className="h-full">
                 <div className="p-4 md:p-6">

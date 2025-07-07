@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Sidebar } from "@/components/sidebar";
 import { ChatPanel } from "@/components/chat-panel";
 import { Button } from "./ui/button";
-import { PanelLeft } from "lucide-react";
+import { PanelLeft, ArrowLeft } from "lucide-react";
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useChat } from '@/lib/hooks/use-chat';
 import { IconRenderer } from './icon-renderer';
@@ -25,32 +25,6 @@ export default function ChatLayout() {
         setViewMode('chat');
     }, [activeGroup?.id]);
     
-    const HeaderContent = () => {
-        if (isLoading) {
-            return (
-                <>
-                    <Skeleton className="h-7 w-7 rounded-full" />
-                    <Skeleton className="h-5 w-32" />
-                </>
-            );
-        }
-
-        if (viewMode === 'details') {
-            return <h1 className="text-xl font-semibold tracking-tight">Conversation Details</h1>
-        }
-
-        if (activeGroup) {
-            return (
-                <button className="flex items-center gap-3 text-left rounded-md -ml-2 px-2 py-1 hover:bg-accent" onClick={() => setViewMode('details')}>
-                    <IconRenderer name={activeGroup.icon} />
-                    <h1 className="text-xl font-semibold tracking-tight">{activeGroup.name}</h1>
-                </button>
-            );
-        }
-        
-        return <h1 className="text-xl font-semibold tracking-tight">ZenGroup Chat</h1>;
-    }
-
     return (
         <div className="flex h-screen bg-background text-foreground">
             <Sidebar 
@@ -67,14 +41,33 @@ export default function ChatLayout() {
                            <PanelLeft className="h-5 w-5" />
                        </Button>
                        <div className='flex items-center gap-3'>
-                         <HeaderContent />
+                         {viewMode === 'details' ? (
+                            <>
+                                <Button variant="ghost" size="icon" onClick={() => setViewMode('chat')} className='-ml-2'>
+                                    <ArrowLeft className="h-5 w-5" />
+                                </Button>
+                                <h1 className="text-xl font-semibold tracking-tight">Conversation Details</h1>
+                            </>
+                        ) : isLoading ? (
+                            <>
+                                <Skeleton className="h-7 w-7 rounded-full" />
+                                <Skeleton className="h-5 w-32" />
+                            </>
+                        ) : activeGroup ? (
+                            <button className="flex items-center gap-3 text-left rounded-md -ml-2 px-2 py-1 hover:bg-accent" onClick={() => setViewMode('details')}>
+                                <IconRenderer name={activeGroup.icon} />
+                                <h1 className="text-xl font-semibold tracking-tight">{activeGroup.name}</h1>
+                            </button>
+                        ) : (
+                            <h1 className="text-xl font-semibold tracking-tight">ZenGroup Chat</h1>
+                        )}
                        </div>
                     </div>
                  </header>
                  {viewMode === 'chat' || !activeGroup ? (
                     <ChatPanel />
                  ) : (
-                    <GroupDetailPanel group={activeGroup} onClose={() => setViewMode('chat')} />
+                    <GroupDetailPanel group={activeGroup} />
                  )}
             </div>
         </div>
