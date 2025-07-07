@@ -6,7 +6,6 @@ import { Info, Users, Bot } from 'lucide-react';
 import { GroupOverview } from './group-overview';
 import { GroupMembers } from './group-members';
 import { AvailableAIs } from './available-ais';
-import { ScrollArea } from './ui/scroll-area';
 import type { ChatGroup } from '@/lib/types';
 
 interface GroupDetailPanelProps {
@@ -28,7 +27,7 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
     <div className="flex flex-col md:flex-row h-full bg-background">
         {/* Navigation Panel: Top on mobile, Left on desktop */}
         <div className="md:w-64 bg-card md:border-r flex flex-col shrink-0">
-            {/* Desktop Title */}
+            {/* Desktop Title - Hidden on mobile */}
             <div className="p-4 border-b h-16 hidden md:flex items-center">
                 <h2 className="text-lg font-semibold tracking-tight">Group Info</h2>
             </div>
@@ -50,14 +49,12 @@ export function GroupDetailPanel({ group }: GroupDetailPanelProps) {
         </div>
 
         {/* Content Panel */}
-        <div className="flex-1 overflow-hidden">
-            <ScrollArea className="h-full">
-                <div className="p-4 md:p-6">
-                    {activeTab === 'overview' && <GroupOverview group={group} />}
-                    {activeTab === 'members' && <GroupMembers />}
-                    {activeTab === 'ais' && <AvailableAIs />}
-                </div>
-            </ScrollArea>
+        <div className="flex-1 overflow-y-auto">
+            <div className="p-4 md:p-6">
+                {activeTab === 'overview' && <GroupOverview group={group} />}
+                {activeTab === 'members' && <GroupMembers />}
+                {activeTab === 'ais' && <AvailableAIs />}
+            </div>
         </div>
     </div>
   );
